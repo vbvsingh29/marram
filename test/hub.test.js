@@ -69,3 +69,16 @@ test('HTTP guards: sign-in, header, host and input validation', async () => {
     assert.match((await req(port, 'POST', '/api/send-stream', H, JSON.stringify({ cwd: '/etc', prompt: 'x' }))).body, /cwd missing or outside home/);
   } finally { hub.server.close(); }
 });
+
+test('vault: values never listed, file is 0600, project overrides global', () => {
+  const v = require('../lib/vault'), fs = require('fs');
+  v.vaultSet({ name: 'BB_TOKEN', value: 'GVAL9', scope: 'global' });
+  const id = v.vaultSet({ name: 'BB_TOKEN', value: 'PVAL9', scope: work }).id;
+  assert.ok(!JSON.stringify(v.vaultList()).includes('PVAL9'));
+  assert.strictEqual(fs.statSync(v.VF).mode & 0o777, 0o600);
+  assert.strictEqual(v.vaultResolve('BB_TOKEN', work), 'PVAL9');
+  assert.strictEqual(v.vaultResolve('BB_TOKEN', home), 'GVAL9');
+  assert.throws(() => v.vaultSet({ name: 'bad name', value: 'x' }));
+  assert.throws(() => v.vaultSet({ name: 'BB_TOKEN', value: 'x', scope: work }));
+  v.vaultDel(id); assert.strictEqual(v.vaultList().length, 1);
+});

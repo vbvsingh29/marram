@@ -80,7 +80,7 @@ svg text{fill:var(--mut);font:11px var(--ui)}
 table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:5px 8px;border-bottom:1px solid var(--bd);text-align:left;overflow-wrap:anywhere}th{color:var(--mut);font-weight:500}.tw{overflow-x:auto}
 </style></head><body>
 <aside><h1>Claude Session Hub <button id="th" style="float:right;padding:1px 8px;font-size:11px">theme</button></h1><div class="mut" id="sum"></div><label class="mut" style="display:block;margin:8px 0"><input type="checkbox" id="hb" checked style="padding:0"> hide backup dirs</label><div id="projs"></div></aside>
-<main><div class="bar" id="tabs"></div><div id="chg" hidden></div><div id="newp" hidden></div><div id="trm" hidden></div><div id="skl" hidden></div><div id="hyp" hidden></div><div id="opt" hidden></div><div id="tkt" hidden></div><div id="wtp" hidden></div><div id="srp" hidden></div><div id="sess"><div class="bar"><select id="recent"></select><button id="qs" title="full-text search inside every chat">search inside chats</button><input id="q" placeholder="filter sessions by title, folder, ticket or note  ( / )" style="flex:1;min-width:160px"></div><div id="stats"></div><div class="bar" id="filters"></div><div id="wtb"></div><div id="rules"></div><div id="list"></div></div></main>
+<main><div class="bar" id="tabs"></div><div id="chg" hidden></div><div id="newp" hidden></div><div id="trm" hidden></div><div id="skl" hidden></div><div id="lib" hidden></div><div id="hyp" hidden></div><div id="opt" hidden></div><div id="tkt" hidden></div><div id="wtp" hidden></div><div id="srp" hidden></div><div id="sess"><div class="bar"><select id="recent"></select><button id="qs" title="full-text search inside every chat">search inside chats</button><input id="q" placeholder="filter sessions by title, folder, ticket or note  ( / )" style="flex:1;min-width:160px"></div><div id="stats"></div><div class="bar" id="filters"></div><div id="wtb"></div><div id="rules"></div><div id="list"></div></div></main>
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -264,11 +264,11 @@ async function loadRules(){
 
 const inProj=s=>proj==='ALL'||(pg?(s.repo||s.cwd)===proj:s.cwd===proj);
 const mb=b=>(b/1048576).toFixed(0)+' MB';
-const TABS=[['sessions','Sessions','sess'],['new','New session','newp'],['term','Terminal','trm'],['changes','Code changes','chg'],['tickets','Tickets','tkt'],['wt','Worktrees','wtp'],['search','Search','srp'],['skills','Skills','skl'],['hyped','Hyped','hyp'],['opt','Optimize','opt']];
+const TABS=[['sessions','Sessions','sess'],['new','New session','newp'],['term','Terminal','trm'],['changes','Code changes','chg'],['tickets','Tickets','tkt'],['wt','Worktrees','wtp'],['search','Search','srp'],['lib','Library','lib'],['skills','Skills','skl'],['hyped','Hyped','hyp'],['opt','Optimize','opt']];
 function setTab(t,nopush){tab=t;$('#tabs').innerHTML=TABS.map(x=>`<button data-t="${x[0]}" class="${t===x[0]?'on':''}">${x[1]}</button>`).join('');
   document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
   TABS.forEach(x=>$('#'+x[2]).hidden=x[0]!==t);
-  ({changes:drawChanges,new:()=>drawNew(),term:()=>drawTerm(),tickets:drawTickets,wt:drawWt,search:()=>drawSearch(),skills:drawSkills,hyped:()=>drawHype(),opt:drawOpt})[t]?.();if(!nopush)syncHash()}
+  ({changes:drawChanges,new:()=>drawNew(),term:()=>drawTerm(),tickets:drawTickets,wt:drawWt,search:()=>drawSearch(),skills:drawSkills,hyped:()=>drawHype(),opt:drawOpt,lib:drawLib})[t]?.();if(!nopush)syncHash()}
 
 
 
@@ -390,6 +390,39 @@ async function loadSk(box,id,cwd){
   box.querySelector('[data-defs]').onclick=async()=>{await api('/api/apply-defaults',{cwd});loadSk(box,id,cwd)};
 }
 let sq='';
+let libScope='global';
+async function drawLib(){
+  const el=$('#lib'),dirs=[...new Set(D.sessions.map(s=>s.repo||s.cwd))].sort();
+  if(proj!=='ALL'&&libScope==='global'&&!el.dataset.init){libScope=proj}el.dataset.init=1;
+  const g=libScope==='global',cwd=g?'':libScope;
+  const [V,K,PK,R]=await Promise.all([api('/api/vault'),api('/api/skills'),g?[]:api('/api/project-skills?cwd='+encodeURIComponent(cwd)),g?api('/api/rules?cwd='+encodeURIComponent('/home'))
+    :api('/api/rules?cwd='+encodeURIComponent(cwd))]);
+  const gl=K.filter(k=>k.src==='global'),mine=V.filter(v=>v.scope===libScope),inh=g?[]:V.filter(v=>v.scope==='global');
+  const rp=g?null:R.find(r=>r.path===cwd+'/CLAUDE.md'),gp=R.find(r=>r.path.endsWith('/.claude/CLAUDE.md'));
+  const vrow=v=>`<div class="row" data-v="${v.id}"><b>${esc(v.name)}</b><code class="vv mut">${'•'.repeat(Math.min(v.len,16))}</code><span class="mut">${esc(v.note)}${v.scope==='global'&&!g?' (global, inherited)':''}</span><button data-a="show">show</button><button data-a="copy">copy</button><button data-a="edit">edit</button><button data-a="del">delete</button></div>`;
+  el.innerHTML=`<h1>Library</h1><div class="mut">Global = applies everywhere. Project = only that folder. Project secrets override global ones with the same name.</div>
+  <div class="bar"><select id="lsc"><option value="global">Global (all projects)</option>${dirs.map(d=>`<option value="${esc(d)}" ${d===libScope?'selected':''}>${esc(short(d))}</option>`).join('')}</select></div>
+  <div class="card"><h3>Secrets <span class="badge">${mine.length}</span></h3>
+   <div class="mut">Saved in <code>~/.claude/hub-vault.json</code> (owner-only file, plain text, same as ~/.git-credentials). Never shown in lists, never put in chats or git. Use in a shell: <code>export BITBUCKET_TOKEN=$(node server.js --secret BITBUCKET_TOKEN)</code></div>
+   ${mine.map(vrow).join('')||'<p class="mut">none yet</p>'}${inh.length?`<details><summary>${inh.length} inherited from global</summary>${inh.map(vrow).join('')}</details>`:''}
+   <div class="row"><input id="vn" placeholder="NAME e.g. BITBUCKET_TOKEN" style="width:210px"><input id="vv" type="password" autocomplete="off" placeholder="value" style="flex:1;min-width:140px"><input id="vo" placeholder="note (optional)" style="width:170px"><button id="vs">Save secret</button><span class="mut" id="vm"></span></div></div>
+  <div class="card"><h3>Rules (CLAUDE.md) <span class="badge">${g?'global':esc(short(cwd))}</span></h3>${(g?[gp]:[rp]).map(r=>{const rpth=r?r.path:(g?D.home+'/.claude':cwd)+'/CLAUDE.md';return `<div class="rule" data-p="${esc(rpth)}"><div class="mut">${esc(short(rpth))}${r?'':' (will be created)'}</div><textarea style="min-height:200px">${esc(r?r.content:'')}</textarea><div class="row"><button class="save">Save</button><span class="mut"></span></div></div>`}).join('')}</div>
+  <div class="card"><h3>Skills <span class="badge">${g?gl.length+' global':PK.length+' in project'}</span></h3>
+   ${g?gl.map(k=>`<div class="row"><b>${esc(k.name)}</b><span class="mut">${esc(k.desc.slice(0,110))}</span></div>`).join('')||'<p class="mut">no global skills</p>'
+   :PK.map(k=>`<div class="row"><b>${esc(k.name)}</b><span class="mut">${k.link?'linked by hub':'own folder'}</span>${k.link?`<button data-rs="${esc(k.name)}">remove</button>`:''}</div>`).join('')||'<p class="mut">no project skills</p>'}
+   <div class="mut">${g?'Global skills load in every project. Add or install more in the Skills and Hyped tabs.':'Add skills to this project from the Skills tab (pick this project in the sidebar first).'}</div></div>`;
+  $('#lsc').onchange=e=>{libScope=e.target.value;drawLib()};
+  el.querySelectorAll('.rule .save').forEach(b=>b.onclick=async()=>{const d=b.closest('.rule');const r=await api('/api/rules',{path:d.dataset.p,content:d.querySelector('textarea').value});b.nextElementSibling.textContent=r.error?r.error:'saved'});
+  el.querySelectorAll('[data-rs]').forEach(b=>b.onclick=async()=>{await api('/api/skill-remove',{cwd,name:b.dataset.rs});drawLib()});
+  let editId='';
+  $('#vs').onclick=async()=>{const r=await api('/api/vault-set',{id:editId,name:$('#vn').value.trim(),value:$('#vv').value,note:$('#vo').value,scope:libScope});if(r.error){$('#vm').textContent=r.error;return}drawLib()};
+  el.querySelectorAll('[data-v] button').forEach(b=>b.onclick=async()=>{const row=b.closest('[data-v]'),id=row.dataset.v,a=b.dataset.a;
+    if(a==='del'){if(b.dataset.c!=='1'){b.dataset.c='1';b.textContent='really delete?';return}await api('/api/vault-del',{id});return drawLib()}
+    if(a==='edit'){const v=V.find(x=>x.id===id);editId=id;$('#vn').value=v.name;$('#vo').value=v.note;$('#vv').placeholder='new value (blank = keep)';$('#vn').scrollIntoView({block:'center'});return}
+    const r=await api('/api/vault-get',{id});if(r.error)return;
+    if(a==='copy'){try{await navigator.clipboard.writeText(r.value);b.textContent='copied'}catch{b.textContent='copy failed'}setTimeout(()=>b.textContent='copy',1500);return}
+    const c=row.querySelector('.vv');if(b.textContent==='show'){c.textContent=r.value;b.textContent='hide';setTimeout(()=>{c.textContent='•'.repeat(Math.min(r.value.length,16));b.textContent='show'},15000)}else{c.textContent='•'.repeat(Math.min(r.value.length,16));b.textContent='show'}});
+}
 async function drawSkills(){
   const el=$('#skl');el.innerHTML='<p class="mut">scanning skills and usage...</p>';
   const [K,pk]=await Promise.all([api('/api/skills'),proj==='ALL'?[]:api('/api/project-skills?cwd='+encodeURIComponent(proj))]);
