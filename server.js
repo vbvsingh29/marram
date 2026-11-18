@@ -272,19 +272,22 @@ async function ghSearch(q) {
   if (!j.items) return { error: j.message || 'github search failed (rate limit?)' };
   return j.items.map(i => ({ name: i.full_name, desc: i.description || '', stars: i.stargazers_count, url: i.html_url, lang: i.language || '', pushed: i.pushed_at }));
 }
-async function hype(kind) {
-  const h = hypeCache[kind]; if (h && Date.now() - h.t < 600000) return h.v;
+const HCATS = { frontend: ['frontend', 'react', 'vue', 'nextjs', 'css'], backend: ['backend', 'api', 'nodejs', 'fastapi', 'django'], ui: ['ui', 'design', 'ux', 'tailwind', 'figma'], security: ['security', 'vulnerability', 'pentest', 'audit', 'owasp'], quality: ['code-review', 'refactor', 'lint', 'clean-code', 'simplify'], testing: ['testing', 'tdd', 'playwright', 'jest', 'pytest'], devops: ['devops', 'docker', 'kubernetes', 'aws', 'cloudflare'], data: ['database', 'sql', 'postgres', 'analytics', 'data-science'], ai: ['agent', 'llm', 'mcp', 'prompt', 'rag'], mobile: ['mobile', 'ios', 'android', 'flutter', 'react-native'], docs: ['documentation', 'writing', 'markdown', 'docs'], productivity: ['productivity', 'workflow', 'automation', 'planning'], git: ['git', 'github', 'pull-request', 'commit', 'changelog'] };
+async function hype(kind, cat, q) {
+  q = String(q || '').replace(/[^\w .-]/g, ' ').trim().slice(0, 60); cat = HCATS[cat] ? cat : '';
+  const key = kind + '|' + cat + '|' + q, h = hypeCache[key]; if (h && Date.now() - h.t < 600000) return h.v;
+  const kw = (cat ? '(' + HCATS[cat].join(' OR ') + ') ' : '') + (q ? q + ' ' : '') + (cat || q ? 'in:name,description,topics ' : '');
   let v;
   if (kind === 'skills') {
-    const qs = ['topic:claude-skills', 'topic:claude-code-skills', 'topic:agent-skills', 'topic:claude-code'];
+    const qs = (cat || q ? ['topic:claude-skills', 'topic:claude-code'] : ['topic:claude-skills', 'topic:claude-code-skills', 'topic:agent-skills', 'topic:claude-code']).map(t => kw + t);
     const rs = await Promise.all(qs.map(ghSearch)), seen = new Map();
     for (const r of rs) if (Array.isArray(r)) for (const i of r) if (!seen.has(i.name)) seen.set(i.name, i);
-    v = seen.size ? [...seen.values()].sort((a, b) => b.stars - a.stars).slice(0, 30) : { error: (rs.find(r => r.error) || {}).error || 'nothing found' };
+    v = seen.size ? [...seen.values()].sort((a, b) => b.stars - a.stars).slice(0, 30) : (rs.some(r => r.error) ? { error: (rs.find(r => r.error) || {}).error } : []);
   } else {
     const d = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
-    v = await ghSearch('created:>' + d + ' stars:>50');
+    v = await ghSearch(kw + 'created:>' + d + ' stars:>' + (cat || q ? 10 : 50));
   }
-  if (Array.isArray(v)) hypeCache[kind] = { t: Date.now(), v };
+  if (Array.isArray(v)) hypeCache[key] = { t: Date.now(), v };
   return v;
 }
 const REPO = /^[\w.-]+\/[\w.-]+$/;
@@ -476,7 +479,7 @@ http.createServer(async (req, res) => {
     if (req.method === 'GET' && u.pathname === '/api/project-skills') return json(res, 200, projectSkills(u.searchParams.get('cwd')).map(x => ({ name: x.name, link: x.link })));
     if (req.method === 'GET' && u.pathname === '/api/suggest') return json(res, 200, suggest(u.searchParams.get('id') || '', u.searchParams.get('cwd') || ''));
     if (req.method === 'GET' && u.pathname === '/api/procs') { const p = procs(); return json(res, 200, { procs: p, tips: tips(), total: p.reduce((a, x) => a + x.rss, 0), mem: (() => { const m = fs.readFileSync('/proc/meminfo', 'utf8'); const g = k => +(m.match(new RegExp(k + ':\\s+(\\d+)')) || [])[1] * 1024; return { total: g('MemTotal'), avail: g('MemAvailable') }; })() }); }
-    if (req.method === 'GET' && u.pathname === '/api/hype') return json(res, 200, await hype(u.searchParams.get('kind') === 'repos' ? 'repos' : 'skills'));
+    if (req.method === 'GET' && u.pathname === '/api/hype') return json(res, 200, await hype(u.searchParams.get('kind') === 'repos' ? 'repos' : 'skills', u.searchParams.get('cat'), u.searchParams.get('q')));
     if (req.method === 'GET' && u.pathname === '/api/search') return json(res, 200, searchTranscripts(u.searchParams.get('q') || ''));
     if (req.method === 'GET' && u.pathname === '/api/worktrees') return json(res, 200, wtGet(u.searchParams.get('fresh') === '1'));
     if (req.method === 'GET' && u.pathname === '/api/du') { const p = u.searchParams.get('path') || ''; if (!wtGet().rows.some(r => r.path === p)) return json(res, 404, { error: 'unknown' }); const o = require('child_process').spawnSync('du', ['-sk', p], { encoding: 'utf8', timeout: 30000 }); return json(res, 200, { kb: parseInt(o.stdout) || 0 }); }

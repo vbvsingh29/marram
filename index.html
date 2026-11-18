@@ -73,7 +73,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:5px 8px;b
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ST=['active','later','revisit','done'];
-let TK=[],TRE=null,openG=new Map(),pg=false,tab='sessions',D={sessions:[],liveProcs:0,jira:''},focusId='',proj='ALL',flt='all',rulesCache={},view='cards';
+let hc='',hq='',TK=[],TRE=null,openG=new Map(),pg=false,tab='sessions',D={sessions:[],liveProcs:0,jira:''},focusId='',proj='ALL',flt='all',rulesCache={},view='cards';
 const LSx={get:k=>{try{return localStorage.getItem('hub.'+k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem('hub.'+k,v)}catch{}}};
 try{const t=LSx.get('theme');if(t)document.documentElement.dataset.theme=t;proj=LSx.get('proj')||'ALL';pg=LSx.get('pg')==='1';flt=LSx.get('flt')||'all';view=LSx.get('view')||'cards';openG=new Map(JSON.parse(LSx.get('open')||'[]'))}catch{}
 const api=(p,b)=>fetch(p,b?{method:'POST',headers:{'content-type':'application/json','x-hub':'1'},body:JSON.stringify(b)}:{headers:{'x-hub':'1'}}).then(r=>r.json());
@@ -376,11 +376,12 @@ async function drawSkills(){
 let hk='skills';
 async function drawHype(){
   const el=$('#hyp');el.innerHTML='<p class="mut">fetching from GitHub...</p>';
-  const R=await api('/api/hype?kind='+hk),g=`https://www.google.com/search?q=${encodeURIComponent(hk==='skills'?'best claude code skills github':'trending github repositories this week')}`;
+  const R=await api('/api/hype?kind='+hk+'&cat='+hc+'&q='+encodeURIComponent(hq)),g=`https://www.google.com/search?q=${encodeURIComponent(hk==='skills'?'best claude code skills github':'trending github repositories this week')}`;
   el.innerHTML=`<div class="bar"><button data-k="skills" class="${hk==='skills'?'on':''}">Top skills repos</button><button data-k="repos" class="${hk==='repos'?'on':''}">Hot repos this week</button><button id="hr">refresh</button><a class="badge" href="${g}" target="_blank" rel="noopener">search Google</a></div>
+  <div class="bar"><input id="hq" value="${esc(hq)}" placeholder="search skills (e.g. react, postgres, pdf)" style="min-width:260px"><button id="hqg">search</button></div><div class="bar" id="hcs">${[['','All'],['frontend','Frontend'],['backend','Backend'],['ui','UI / design'],['security','Security'],['quality','Code quality'],['testing','Testing'],['devops','DevOps / cloud'],['data','Data / DB'],['ai','AI / agents'],['mobile','Mobile'],['docs','Docs'],['productivity','Productivity'],['git','Git / PRs']].map(([k,l])=>`<button data-c="${k}" class="${hc===k?'on':''}">${l}</button>`).join('')}</div>
   <div class="mut">Live from the GitHub search API, cached 10 min. Skills are instructions Claude follows and may ship scripts. Install shows a preview first, copies into the hub library (not active anywhere), and never runs repo code.</div>`+
-  (R.error?`<p class="mut">${esc(R.error)}</p>`:R.map((r,i)=>`<div class="card" data-i="${i}"><h3><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a> <span class="badge">&#9733; ${r.stars.toLocaleString()}</span> ${r.lang?`<span class="badge">${esc(r.lang)}</span>`:''}</h3><div class="q">${esc(r.desc)}</div><div class="mut">updated ${ago(Date.parse(r.pushed))}</div><div class="row"><button class="pv">Preview &amp; install skills</button></div><div class="pvb"></div></div>`).join(''));
-  el.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{hk=b.dataset.k;drawHype()});$('#hr').onclick=drawHype;
+  (R.error?`<p class="mut">${esc(R.error)}</p>`:!R.length?'<p class="mut">Nothing matched. Try a broader word or another category.</p>':R.map((r,i)=>`<div class="card" data-i="${i}"><h3><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a> <span class="badge">&#9733; ${r.stars.toLocaleString()}</span> ${r.lang?`<span class="badge">${esc(r.lang)}</span>`:''}</h3><div class="q">${esc(r.desc)}</div><div class="mut">updated ${ago(Date.parse(r.pushed))}</div><div class="row"><button class="pv">Preview &amp; install skills</button></div><div class="pvb"></div></div>`).join(''));
+  el.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{hk=b.dataset.k;drawHype()});el.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{hc=b.dataset.c;drawHype()});const go=()=>{hq=$('#hq').value;drawHype()};$('#hqg').onclick=go;$('#hq').onkeydown=e=>{if(e.key==='Enter')go()};$('#hr').onclick=drawHype;
   el.querySelectorAll('.pv').forEach(b=>b.onclick=async()=>{
     const c=b.closest('.card'),repo=R[c.dataset.i].name,box=c.querySelector('.pvb');box.innerHTML='<p class="mut">cloning (shallow) and scanning...</p>';
     const P=await api('/api/install-preview',{repo});
