@@ -68,7 +68,7 @@ svg text{fill:var(--mut);font:11px var(--ui)}
 table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:5px 8px;border-bottom:1px solid var(--bd);text-align:left;overflow-wrap:anywhere}th{color:var(--mut);font-weight:500}.tw{overflow-x:auto}
 </style></head><body>
 <aside><h1>Claude Session Hub <button id="th" style="float:right;padding:1px 8px;font-size:11px">theme</button></h1><div class="mut" id="sum"></div><label class="mut" style="display:block;margin:8px 0"><input type="checkbox" id="hb" checked style="padding:0"> hide backup dirs</label><div id="projs"></div></aside>
-<main><div class="bar" id="tabs"></div><div id="chg" hidden></div><div id="newp" hidden></div><div id="trm" hidden></div><div id="skl" hidden></div><div id="hyp" hidden></div><div id="opt" hidden></div><div id="tkt" hidden></div><div id="wtp" hidden></div><div id="srp" hidden></div><div id="sess"><div class="bar"><select id="recent"></select><button id="qs" title="search inside all chat text">search chats</button><input id="q" placeholder="search all sessions" style="flex:1;min-width:160px"></div><div id="stats"></div><div class="bar" id="filters"></div><div id="rules"></div><div id="list"></div></div></main>
+<main><div class="bar" id="tabs"></div><div id="chg" hidden></div><div id="newp" hidden></div><div id="trm" hidden></div><div id="skl" hidden></div><div id="hyp" hidden></div><div id="opt" hidden></div><div id="tkt" hidden></div><div id="wtp" hidden></div><div id="srp" hidden></div><div id="sess"><div class="bar"><select id="recent"></select><button id="qs" title="search inside all chat text">search chats</button><input id="q" placeholder="search all sessions" style="flex:1;min-width:160px"></div><div id="stats"></div><div class="bar" id="filters"></div><div id="wtb"></div><div id="rules"></div><div id="list"></div></div></main>
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -196,7 +196,25 @@ async function drawChanges(){
   h+='<h1>Changes made by sessions (latest 20)</h1>'+cs.map(({s,c})=>`<div class="card"><h3>${esc(s.name||s.title||s.first.slice(0,70)||s.id)} ${acts(s.id)}</h3><div class="mut">${fmt(s.created)} to ${fmt(s.mtime)}</div>${chHtml(c,g.remote||'')}</div>`).join('');
   el.innerHTML=h;
 }
+async function loadWtBanner(){
+  const b=$('#wtb');b.innerHTML='';if(proj==='ALL'||pg)return;const mine=proj;
+  const W=await api('/api/worktrees');if(mine!==proj)return;const r=W.rows.find(x=>x.path===mine);if(!r)return;
+  const risky=r.dirty||r.unpushed;
+  b.innerHTML=`<div class="card"><div class="row" style="margin:0"><b>Git worktree</b><span class="badge">${esc(r.branch||'')}</span><span class="mut">idle ${r.missing?'?':r.days+'d'}${r.dirty?' · '+r.dirty+' uncommitted':''}${r.unpushed?' · '+r.unpushed+' unpushed':''} · ${esc(r.state)}</span>
+   ${r.state==='running'?'<span class="mut">a session is running here; close it to remove</span>':'<button id="wtbr">Remove this worktree</button>'}</div><div id="wtbc"></div></div>`;
+  const rb=$('#wtbr');if(!rb)return;
+  rb.onclick=()=>{$('#wtbc').innerHTML=`<div class="mut" style="margin-top:8px">Deletes the folder ${esc(short(r.path))}, including ignored files such as .env. The branch is kept, so committed work is not lost. Your chats stay in the hub.</div>
+    ${risky?`<div class="mut" style="color:#d33">Uncommitted changes will be LOST.</div><label><input type="checkbox" id="wtbf"> I understand, force-remove</label>`:''}
+    <div class="row"><label class="mut"><input type="checkbox" id="wtbd"> also delete branch (only if fully merged)</label><button class="primary" id="wtby">Yes, remove</button><button id="wtbn">cancel</button></div>`;
+    $('#wtbn').onclick=()=>$('#wtbc').innerHTML='';
+    $('#wtby').onclick=async()=>{const force=!!($('#wtbf')&&$('#wtbf').checked);if(risky&&!force){$('#wtbc').insertAdjacentHTML('beforeend','<div class="mut" style="color:#d33">tick the box to confirm</div>');return}
+      $('#wtby').disabled=true;$('#wtby').textContent='removing...';
+      const x=(await api('/api/wt-remove-many',{paths:[r.path],force,deleteBranch:$('#wtbd').checked}))[0];
+      if(x.error){$('#wtbc').innerHTML='<div class="mut" style="color:#d33">'+esc(x.error)+'</div>';return}
+      proj='ALL';pg=false;await load();setTab('sessions')}}
+}
 async function loadRules(){
+  loadWtBanner();
   if(proj==='ALL'){$('#rules').innerHTML='';return}
   const R=await api('/api/rules?cwd='+encodeURIComponent(proj)),RA=await api('/api/rules-audit?cwd='+encodeURIComponent(proj));
   $('#rules').innerHTML=`<details><summary>Rules (CLAUDE.md) · ${R.length} file(s) apply to ${esc(short(proj))} · ${(RA.total/1024).toFixed(1)} KB loaded per session${RA.dups.length?` · ${RA.dups.length} duplicate line(s)`:''}</summary>${RA.dups.length?`<div class="q">Duplicated across files: ${RA.dups.slice(0,5).map(d=>esc(d.line)).join(' | ')}</div>`:''}`+
@@ -231,6 +249,7 @@ async function route(){
   const t=TABS.some(x=>x[0]===m[1])?m[1]:'sessions';setTab(t,true);
   const c=p.get('chat');
   if(c){if(!D.sessions.length)await load();else draw();chatId=c;openChat(c,true)}else{chatId='';const o=$('#chatv');if(o)o.hidden=true;if(D.sessions.length)draw()}
+  if(proj!=='ALL')loadRules();
 }
 addEventListener('popstate',route);
 function closeChat(){const o=$('#chatv');if(o)o.hidden=true;chatId='';syncHash()}
@@ -420,16 +439,18 @@ async function drawWt(fresh){
   const sel=new Set();
   const shown=()=>{const f=$('#wsf').value,q=$('#wsq').value.toLowerCase();return W.rows.filter(r=>(f==='all'||r.state===f)&&(!q||(r.repo+' '+r.path+' '+(r.branch||'')).toLowerCase().includes(q)))};
   const upd=()=>{const n=sel.size;$('#wrs').textContent='Remove selected ('+n+')';$('#wrs').disabled=!n};
-  const paint=()=>{const R=shown();$('#wtt').innerHTML='<tr><th></th><th>repo</th><th>worktree</th><th>branch</th><th>idle</th><th>dirty</th><th>unpushed</th><th>size</th><th>state</th></tr>'+R.map(r=>`<tr><td><input type="checkbox" data-s="${esc(r.path)}" ${sel.has(r.path)?'checked':''} ${r.state==='running'?'disabled':''}></td><td>${esc(r.repo.split('/').pop())}</td><td title="${esc(r.path)}">${esc(sk(r).split('/').slice(-1)[0])}</td><td>${esc(r.branch||'')}</td><td>${r.missing?'':r.days+'d'}</td><td>${r.dirty||''}</td><td>${r.unpushed||''}</td><td data-sz="${esc(r.path)}"></td><td><span class="pill st-${r.eligible?'done':r.state==='running'?'active':'later'}"><i></i>${r.state}</span></td></tr>`).join('');
+  const paint=()=>{const R=shown();$('#wtt').innerHTML='<tr><th></th><th>repo</th><th>worktree</th><th>branch</th><th>idle</th><th>dirty</th><th>unpushed</th><th>size</th><th>state</th><th></th></tr>'+R.map(r=>`<tr><td><input type="checkbox" data-s="${esc(r.path)}" ${sel.has(r.path)?'checked':''} ${r.state==='running'?'disabled':''}></td><td>${esc(r.repo.split('/').pop())}</td><td title="${esc(r.path)}">${esc(sk(r).split('/').slice(-1)[0])}</td><td>${esc(r.branch||'')}</td><td>${r.missing?'':r.days+'d'}</td><td>${r.dirty||''}</td><td>${r.unpushed||''}</td><td data-sz="${esc(r.path)}"></td><td><span class="pill st-${r.eligible?'done':r.state==='running'?'active':'later'}"><i></i>${r.state}</span></td><td>${r.state==='running'?'':`<button class="rm1" data-r="${esc(r.path)}">remove</button>`}</td></tr>`).join('');
+    $('#wtt').querySelectorAll('.rm1').forEach(b=>b.onclick=()=>ask([W.rows.find(r=>r.path===b.dataset.r)]));
     $('#wtt').querySelectorAll('[data-s]').forEach(c=>c.onchange=()=>{c.checked?sel.add(c.dataset.s):sel.delete(c.dataset.s);upd()});upd()};
   $('#wsf').onchange=paint;$('#wsq').oninput=paint;$('#wsa').onclick=()=>{shown().filter(r=>r.state!=='running').forEach(r=>sel.add(r.path));paint()};$('#wsn').onclick=()=>{sel.clear();paint()};
-  $('#wrs').onclick=()=>{
-    const rows=W.rows.filter(r=>sel.has(r.path)),risky=rows.filter(r=>r.dirty||r.unpushed),box=$('#wbox'),db=$('#wdb').checked;
+  $('#wrs').onclick=()=>ask(W.rows.filter(r=>sel.has(r.path)));
+  const ask=rows=>{
+    const risky=rows.filter(r=>r.dirty||r.unpushed),box=$('#wbox'),db=$('#wdb').checked;
     box.innerHTML=`<div class="card"><b>Remove ${rows.length} worktree(s)?</b>
       <div class="mut">The checked-out folder is deleted, including ignored files such as .env. ${db?'Branches are deleted only if fully merged.':'Branches are kept, so committed work is not lost.'}</div>
       ${risky.length?`<div class="mut" style="color:#d33">${risky.length} have uncommitted changes or unpushed commits: ${risky.slice(0,6).map(r=>esc(sk(r).split('/').pop())+' ('+(r.dirty?r.dirty+' dirty':'')+(r.dirty&&r.unpushed?', ':'')+(r.unpushed?r.unpushed+' unpushed':'')+')').join('; ')}${risky.length>6?' ...':''}. Uncommitted changes will be LOST.</div><label><input type="checkbox" id="wfc"> I understand, force-remove those too</label>`:''}
       <div class="row"><button class="primary" id="wgo">Yes, remove</button><button id="wno">cancel</button></div></div>`;
-    $('#wno').onclick=()=>box.innerHTML='';
+    box.scrollIntoView({block:'center'});$('#wno').onclick=()=>box.innerHTML='';
     $('#wgo').onclick=async()=>{const force=!!($('#wfc')&&$('#wfc').checked),paths=rows.filter(r=>force||!(r.dirty||r.unpushed)||r.eligible).map(r=>r.path);
       $('#wgo').disabled=true;$('#wgo').textContent='removing...';
       const res=await api('/api/wt-remove-many',{paths,force,deleteBranch:db});const ok=res.filter(x=>x.ok).length,bad=res.filter(x=>x.error);
@@ -465,5 +486,5 @@ document.addEventListener('keydown',e=>{
 });
 if(/^#\/\w+/.test(location.hash))route();else setTab('sessions');
 $('#q').oninput=draw;$('#hb').onchange=draw;
-load();setInterval(()=>{if(document.querySelector('#list .live:not([hidden])'))return;if(!document.activeElement||!/INPUT|TEXTAREA/.test(document.activeElement.tagName))load()},10000);
+load().then(()=>{if(proj!=='ALL')loadRules()});setInterval(()=>{if(document.querySelector('#list .live:not([hidden])'))return;if(!document.activeElement||!/INPUT|TEXTAREA/.test(document.activeElement.tagName))load()},10000);
 </script><div id="tip"></div></body></html>
