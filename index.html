@@ -410,10 +410,14 @@ async function drawLib(){
   <div class="card"><h3>Skills <span class="badge">${g?gl.length+' global':PK.length+' in project'}</span></h3>
    ${g?gl.map(k=>`<div class="row"><b>${esc(k.name)}</b><span class="mut">${esc(k.desc.slice(0,110))}</span></div>`).join('')||'<p class="mut">no global skills</p>'
    :PK.map(k=>`<div class="row"><b>${esc(k.name)}</b><span class="mut">${k.link?'linked by hub':'own folder'}</span>${k.link?`<button data-rs="${esc(k.name)}">remove</button>`:''}</div>`).join('')||'<p class="mut">no project skills</p>'}
-   <div class="mut">${g?'Global skills load in every project. Add or install more in the Skills and Hyped tabs.':'Add skills to this project from the Skills tab (pick this project in the sidebar first).'}</div></div>`;
+   <div class="row"><select id="lsk" style="max-width:260px"><option value="">add an existing skill...</option>${K.filter(k=>k.src!=='global'&&!(g?false:PK.some(p=>p.name===k.name))).map(k=>`<option value="${esc(k.name)}">${esc(k.name)} (${esc(k.src)})</option>`).join('')}</select><button id="lska">Add to ${g?'global':'this project'}</button><span class="mut" id="lskm"></span></div>
+   <div class="row"><input id="lsn" placeholder="new skill name, e.g. bitbucket-pr" style="width:210px"><input id="lsd" placeholder="when should Claude use it?" style="flex:1;min-width:140px"><button id="lskn">Create new</button></div>
+   <div class="mut">All stored on this machine: ${g?'~/.claude/skills':esc(short(cwd))+'/.claude/skills'}. Skills from GitHub are copied once into ~/.claude/hub-skills (Hyped tab, install), then linked here. Nothing is fetched at run time.</div></div>`;
   $('#lsc').onchange=e=>{libScope=e.target.value;drawLib()};
   el.querySelectorAll('.rule .save').forEach(b=>b.onclick=async()=>{const d=b.closest('.rule');const r=await api('/api/rules',{path:d.dataset.p,content:d.querySelector('textarea').value});b.nextElementSibling.textContent=r.error?r.error:'saved'});
   el.querySelectorAll('[data-rs]').forEach(b=>b.onclick=async()=>{await api('/api/skill-remove',{cwd,name:b.dataset.rs});drawLib()});
+  $('#lska').onclick=async()=>{const n=$('#lsk').value;if(!n)return;const r=await api(g?'/api/skill-global':'/api/skill-add',g?{name:n,on:1}:{cwd,name:n});if(r.error)$('#lskm').textContent=r.error;else drawLib()};
+  $('#lskn').onclick=async()=>{const r=await api('/api/skill-new',{scope:libScope,name:$('#lsn').value.trim(),desc:$('#lsd').value});if(r.error)$('#lskm').textContent=r.error;else{$('#lskm').textContent='created '+r.path;setTimeout(drawLib,2500)}};
   let editId='';
   $('#vs').onclick=async()=>{const r=await api('/api/vault-set',{id:editId,name:$('#vn').value.trim(),value:$('#vv').value,note:$('#vo').value,scope:libScope});if(r.error){$('#vm').textContent=r.error;return}drawLib()};
   el.querySelectorAll('[data-v] button').forEach(b=>b.onclick=async()=>{const row=b.closest('[data-v]'),id=row.dataset.v,a=b.dataset.a;

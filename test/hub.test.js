@@ -82,3 +82,10 @@ test('vault: values never listed, file is 0600, project overrides global', () =>
   assert.throws(() => v.vaultSet({ name: 'BB_TOKEN', value: 'x', scope: work }));
   v.vaultDel(id); assert.strictEqual(v.vaultList().length, 1);
 });
+
+test('skillNew scaffolds locally and rejects bad names', () => {
+  const sk = require('../lib/skills');
+  const r = sk.skillNew(work, 'my-skill', 'does x'); assert.ok(fs.readFileSync(r.path, 'utf8').includes('name: my-skill'));
+  assert.throws(() => sk.skillNew(work, 'my-skill')); assert.throws(() => sk.skillNew(work, '../x'));
+  assert.ok(sk.skillNew('global', 'g-skill').path.startsWith(home));
+});
