@@ -42,22 +42,30 @@ test('transcript paginates from the end', () => {
 
 function req(port, method, p, headers = {}, body) {
   return new Promise((res, rej) => {
-    const r = http.request({ host: '127.0.0.1', port, method, path: p, headers }, x => { let d = ''; x.on('data', c => d += c); x.on('end', () => res({ status: x.statusCode, body: d })); });
+    const r = http.request({ host: '127.0.0.1', port, method, path: p, headers }, x => { let d = ''; x.on('data', c => d += c); x.on('end', () => res({ status: x.statusCode, body: d, headers: x.headers })); });
     r.on('error', rej); if (body) r.write(body); r.end();
   });
 }
 
-test('HTTP guards: header, host and input validation', async () => {
+test('HTTP guards: sign-in, header, host and input validation', async () => {
   await new Promise(r => hub.server.listen(0, '127.0.0.1', r));
-  const port = hub.server.address().port, H = { 'x-hub': '1', 'content-type': 'application/json' };
+  const port = hub.server.address().port, tok = fs.readFileSync(path.join(home, '.claude', 'hub-token'), 'utf8').trim();
+  const C = { cookie: 'hub_tok=' + tok }, H = { ...C, 'x-hub': '1', 'content-type': 'application/json' };
   try {
-    assert.strictEqual((await req(port, 'GET', '/api/sessions')).status, 403, 'GET without header');
-    assert.strictEqual((await req(port, 'GET', '/api/sessions', { 'x-hub': '1' })).status, 200);
-    assert.strictEqual((await req(port, 'GET', '/api/sessions', { 'x-hub': '1', host: 'evil.example' })).status, 403, 'bad Host');
-    assert.strictEqual((await req(port, 'POST', '/api/tag', { 'content-type': 'application/json' }, '{}')).status, 403, 'POST without header');
-    const bad = await req(port, 'POST', '/api/send-stream', H, JSON.stringify({ id: '--bad', cwd: work, prompt: 'x' }));
-    assert.match(bad.body, /bad session id/);
-    const out = await req(port, 'POST', '/api/send-stream', H, JSON.stringify({ cwd: '/etc', prompt: 'x' }));
-    assert.match(out.body, /cwd missing or outside home/);
+    assert.strictEqual(tok.length, 64);
+    assert.strictEqual((fs.statSync(path.join(home, '.claude', 'hub-token')).mode & 0o777), 0o600, 'token file is private');
+    assert.strictEqual((await req(port, 'GET', '/api/sessions', { 'x-hub': '1' })).status, 401, 'no cookie');
+    assert.strictEqual((await req(port, 'GET', '/')).status, 401, 'page needs sign-in');
+    assert.strictEqual((await req(port, 'GET', '/?k=wrong')).status, 403, 'wrong key');
+    const login = await req(port, 'GET', '/?k=' + tok); assert.strictEqual(login.status, 302);
+    assert.match(login.headers['set-cookie'][0], /HttpOnly; SameSite=Strict/);
+    const page = await req(port, 'GET', '/', C); assert.strictEqual(page.status, 200);
+    assert.match(page.headers['content-security-policy'], /default-src 'none'/);
+    assert.strictEqual((await req(port, 'GET', '/api/sessions', C)).status, 403, 'cookie but no x-hub header');
+    assert.strictEqual((await req(port, 'GET', '/api/sessions', H)).status, 200);
+    assert.strictEqual((await req(port, 'GET', '/api/sessions', { ...H, host: 'evil.example' })).status, 403, 'bad Host');
+    assert.strictEqual((await req(port, 'POST', '/api/tag', { 'content-type': 'application/json', 'x-hub': '1' }, '{}')).status, 401, 'POST without cookie');
+    assert.match((await req(port, 'POST', '/api/send-stream', H, JSON.stringify({ id: '--bad', cwd: work, prompt: 'x' }))).body, /bad session id/);
+    assert.match((await req(port, 'POST', '/api/send-stream', H, JSON.stringify({ cwd: '/etc', prompt: 'x' }))).body, /cwd missing or outside home/);
   } finally { hub.server.close(); }
 });
