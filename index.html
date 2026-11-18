@@ -49,6 +49,7 @@ select.st{padding:1px 6px;border-radius:10px;font-size:11px;background:var(--hov
 #stats{gap:10px;margin:2px 0 10px}#stats .tile{padding:8px 12px;display:flex;align-items:baseline;gap:8px}#stats .tile .n{font-size:20px}
 #stats.min .wide{display:none}
 @media(max-width:800px){#stats .tile{padding:6px 10px}}
+#upd{position:fixed;bottom:18px;right:24px;z-index:40;box-shadow:0 6px 24px #0006;border-radius:999px;padding:8px 16px}#upd[hidden]{display:none}
 pre{white-space:pre-wrap;margin:6px 0}.cb code{font:12px var(--mono);background:var(--hov);padding:1px 4px;border-radius:4px}
 pre{white-space:pre-wrap;background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:8px;max-height:300px;overflow:auto;font:12px var(--mono)}
 details{margin:8px 0}summary{cursor:pointer;color:var(--ac);font-weight:500}a{color:var(--ac)}
@@ -93,7 +94,19 @@ const fmt=t=>t?new Date(t).toLocaleString([],{dateStyle:'medium',timeStyle:'shor
 const link=s=>esc(s).replace(/(https?:\/\/[^\s<)]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>').replace(TRE?new RegExp(TRE.source,'g'):/$^/,(m,o,str)=>!D.jira||str.slice(Math.max(0,o-2),o)==='">'||str.slice(o-1,o)==='/'?m:`<a href="${D.jira}${m}" target="_blank" rel="noopener">${m}</a>`);
 const tickets=s=>TRE?[...new Set(((s.name||'')+' '+s.title+' '+s.first+' '+s.last+' '+s.cwd).match(TRE)||[])]:[];
 const short=c=>c.replace(/^\/home\/[^/]+\//,'~/');
-async function load(){D=await api('/api/sessions');TK=D.tickets||[];TRE=TK.length?new RegExp('\\b(?:'+TK.join('|')+')-\\d+\\b','g'):null;draw()}
+const rowSig=s=>s.mtime+':'+s.status+':'+(s.running?1:0)+':'+(s.name||'')+':'+(s.note||'');
+let lastSig='';
+const sigOf=d=>d.sessions.map(s=>s.id+':'+rowSig(s)).join('|');
+function showUpd(n){let b=$('#upd');if(!b){b=document.createElement('button');b.id='upd';b.className='primary';b.onclick=()=>{b.hidden=true;draw()};document.body.appendChild(b)}b.textContent=n+' session'+(n==1?'':'s')+' updated - click to refresh the list';b.hidden=false}
+async function load(){D=await api('/api/sessions');TK=D.tickets||[];TRE=TK.length?new RegExp('\\b(?:'+TK.join('|')+')-\\d+\\b','g'):null;lastSig=sigOf(D);const b=$('#upd');if(b)b.hidden=true;draw()}
+// Background refresh never redraws the page under you: it only fetches, and offers a refresh button if something changed.
+async function poll(){
+  if(document.hidden)return;
+  const d=await api('/api/sessions').catch(()=>null);if(!d||!d.sessions)return;
+  const sg=sigOf(d);if(sg===lastSig)return;
+  const old=new Map(D.sessions.map(s=>[s.id,rowSig(s)]));let n=0;for(const s of d.sessions)if(old.get(s.id)!==rowSig(s))n++;
+  D=d;lastSig=sg;if(n)showUpd(n)}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
 function draw(){
   const S=D.sessions.filter(s=>!($('#hb').checked&&(/\/backup(\/|$)/.test(s.repo||s.cwd)||/backup-/.test(s.cwd)))),by={};S.forEach(s=>(by[s.cwd]??=[]).push(s));
   const run=S.filter(s=>s.running).length;
@@ -327,7 +340,7 @@ function attachTerm(tid,sid,cwd,pre){
   if(!pre)setTimeout(async()=>{try{el.hidden=false;fit.fit()}catch{};await tpost('/api/term-resize',{tid,cols:Math.max(20,term.cols-1),rows:term.rows});setTimeout(()=>tpost('/api/term-resize',{tid,cols:term.cols,rows:term.rows}),150)},300);
   (async()=>{try{const r=await fetch('/api/term-out',{method:'POST',headers:HDR,body:JSON.stringify({tid})});const rd=r.body.getReader();
     for(;;){const {done,value}=await rd.read();if(done)break;term.write(value)}}catch{}
-    o.alive=false;term.write('\r\n\x1b[2m[process ended - press "open in terminal" to resume this session]\x1b[0m\r\n');drawChips();load()})();
+    o.alive=false;term.write('\r\n\x1b[2m[process ended - press "open in terminal" to resume this session]\x1b[0m\r\n');drawChips();poll()})();
 }
 function showTerm(tid){
   curT=tid;TM.forEach(o=>o.el.hidden=o.tid!==tid);const o=TM.get(tid);drawChips();
@@ -336,7 +349,7 @@ function showTerm(tid){
 function drawChips(){const c=$('#tchips');if(!c)return;
   c.innerHTML=[...TM.values()].map(o=>`<span class="chip ${o.tid===curT?'on':''}" data-t="${o.tid}">${o.alive?'●':'○'} ${esc(short(o.cwd))} <span class="mut">${o.sid.slice(0,6)}</span> <a href="#" data-x="${o.tid}" title="${o.alive?'stop & close':'close'}">✕</a></span>`).join('')||'<span class="mut">no terminals open. Use "open in terminal" on a session card, or New session → Start Claude here.</span>';
   c.querySelectorAll('.chip').forEach(x=>x.onclick=e=>{if(e.target.dataset.x)return;showTerm(x.dataset.t)});
-  c.querySelectorAll('[data-x]').forEach(a=>a.onclick=e=>{e.preventDefault();e.stopPropagation();const o=TM.get(a.dataset.x);tpost('/api/term-kill',{tid:o.tid,forget:1});o.term.dispose();o.el.remove();TM.delete(o.tid);if(curT===o.tid){curT=[...TM.keys()][0]||null;if(curT)showTerm(curT)}drawChips();load()})}
+  c.querySelectorAll('[data-x]').forEach(a=>a.onclick=e=>{e.preventDefault();e.stopPropagation();const o=TM.get(a.dataset.x);tpost('/api/term-kill',{tid:o.tid,forget:1});o.term.dispose();o.el.remove();TM.delete(o.tid);if(curT===o.tid){curT=[...TM.keys()][0]||null;if(curT)showTerm(curT)}drawChips();poll()})}
 async function drawTerm(){
   const root=$('#trm');
   if(!$('#tmain')){root.innerHTML='<div class="bar"><div id="tchips" class="bar" style="margin:0"></div></div><div id="tmain"></div>'}
@@ -511,5 +524,5 @@ document.addEventListener('keydown',e=>{
 });
 if(/^#\/\w+/.test(location.hash))route();else setTab('sessions');
 $('#q').oninput=draw;$('#hb').onchange=draw;
-load().then(()=>{if(proj!=='ALL')loadRules()});setInterval(()=>{if(document.querySelector('#list .live:not([hidden])'))return;if(!document.activeElement||!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))load()},10000);
+load().then(()=>{if(proj!=='ALL')loadRules()});setInterval(poll,10000);
 </script><div id="tip"></div></body></html>
