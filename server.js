@@ -433,9 +433,6 @@ function rulesAudit(cwd) {
   for (const [l, ps] of Object.entries(seen)) if (ps.length > 1) dups.push({ line: l.slice(0, 120), in: ps });
   return { files: R.map(r => ({ path: r.path, bytes: Buffer.byteLength(r.content) })), total: R.reduce((a, r) => a + Buffer.byteLength(r.content), 0), dups: dups.slice(0, 15) };
 }
-backupTags(); setInterval(backupTags, 6 * 3600e3);
-setTimeout(() => { try { const n = autoClose(); if (n) console.log('auto-closed', n, 'idle sessions'); } catch (e) { console.log('auto-close failed', e.message); } }, 5000);
-setInterval(() => { try { autoClose(); } catch {} }, 6 * 3600e3);
 
 const json = (r, c, o) => { r.writeHead(c, { 'content-type': 'application/json' }); r.end(JSON.stringify(o)); };
 
@@ -466,7 +463,7 @@ const UUID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const terms = new Map(); let termSeq = 0;
 const body = req => new Promise(r => { let b = ''; req.on('data', d => b += d); req.on('end', () => { try { r(JSON.parse(b || '{}')); } catch { r({}); } }); });
 
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
   const host = (req.headers.host || '').split(':')[0];
   if (host !== '127.0.0.1' && host !== 'localhost') return json(res, 403, { error: 'bad host' });
   const u = new URL(req.url, 'http://x');
@@ -567,4 +564,12 @@ http.createServer(async (req, res) => {
     }
     json(res, 404, { error: 'not found' });
   } catch (e) { json(res, 500, { error: String(e.message || e) }); }
-}).listen(PORT, '127.0.0.1', () => console.log(`Claude Session Hub: http://127.0.0.1:${PORT}`));
+});
+if (require.main === module) {
+backupTags(); setInterval(backupTags, 6 * 3600e3);
+setTimeout(() => { try { const n = autoClose(); if (n) console.log('auto-closed', n, 'idle sessions'); } catch (e) { console.log('auto-close failed', e.message); } }, 5000);
+setInterval(() => { try { autoClose(); } catch {} }, 6 * 3600e3);
+server.listen(PORT, '127.0.0.1', () => console.log(`Claude Session Hub: http://127.0.0.1:${PORT}`));
+}
+module.exports = { server, okCwd, parseSession, transcript, textOf, repoOf };
+

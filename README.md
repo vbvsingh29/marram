@@ -26,3 +26,9 @@ It binds to `127.0.0.1` only, rejects other `Host` headers, and requires an `x-h
 
 ## Data it writes
 `~/.claude/session-tags.json`, `~/.claude/hub-config.json`, `~/.claude/hub-skills/`, `~/.claude/hub-cache/`, `~/.claude/hub-backups/`. It never edits transcripts (the terminal's "resume from another folder" copies one).
+
+## Tests
+```
+npm test
+```
+Uses Node's built-in test runner with a temporary HOME, so it never touches your real `~/.claude`.

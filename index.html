@@ -37,7 +37,11 @@ button.primary{background:var(--ac);color:var(--acfg);border-color:var(--ac)}
 .cm{margin:10px 0}.cw{font-size:11px;color:var(--mut);margin-bottom:3px}.cb{white-space:pre-wrap;line-height:1.5;overflow-wrap:anywhere}
 .cu .cb{background:var(--panel);border:1px solid var(--bd);border-radius:8px;padding:8px 12px}.ca .cb{padding:0 2px}
 .ct,.co{font:12px var(--mono);color:var(--mut)}.ce summary{color:#d33}.cbody.notools .ct,.cbody.notools .co{display:none}
-.cb pre,.co .acts{font-size:12px;font-weight:400;margin-left:6px}.acts a{margin-right:8px}
+.cb pre,.co .acts{font-size:12px;font-weight:400;margin-left:6px}.acts a{margin-right:8px}.c2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+select.st{padding:1px 6px;border-radius:10px;font-size:11px;background:var(--hov);border:0;color:var(--mut)}
+.mw{position:relative}.mm{position:absolute;z-index:6;top:100%;left:0;margin-top:4px;background:var(--panel);border:1px solid var(--bd);border-radius:8px;padding:4px;display:flex;flex-direction:column;min-width:170px;box-shadow:0 6px 20px #0004}.mm[hidden]{display:none}.mm button{text-align:left;border:0;background:none;padding:6px 10px}.mm button:hover{background:var(--hov)}
+.tabs{display:flex;gap:6px;margin:8px 0}.tabs button{padding:2px 10px;font-size:12px}.tabs .on{background:var(--ac);color:var(--acfg);border-color:var(--ac)}
+.card h3 .tt{cursor:default}
 pre{white-space:pre-wrap;margin:6px 0}.cb code{font:12px var(--mono);background:var(--hov);padding:1px 4px;border-radius:4px}
 pre{white-space:pre-wrap;background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:8px;max-height:300px;overflow:auto;font:12px var(--mono)}
 details{margin:8px 0}summary{cursor:pointer;color:var(--ac);font-weight:500}a{color:var(--ac)}
@@ -125,29 +129,36 @@ function stats(S){
 }
 function sendBox(id,cwd){return `<div class="send" data-id="${esc(id)}" data-cwd="${esc(cwd)}"><textarea placeholder="prompt (runs headless: claude -p${id?' --resume':''})"></textarea><div class="row"><button class="go">Send</button><button class="stop" hidden>Stop</button><select class="mode" title="headless cannot ask permission; tools needing approval are denied unless allowed here"><option value="">default perms</option><option value="acceptEdits">auto-accept edits</option><option value="plan">plan only</option></select><span class="mut">headless run; avoid if this session is open in a terminal right now</span></div><div class="live" hidden></div></div>`}
 function card(s){
-  return `<div class="card" data-id="${s.id}"><h3>${esc(s.name||s.title||s.first.slice(0,80)||s.id)} ${s.running?'<span class="badge run">running</span>':''} <span class="pill st-${s.status}"><i></i>${s.status}</span></h3>
-  <div class="mut">${esc(short(s.cwd))} · ${(s.size/1024).toFixed(0)} KB · ${s.id}</div>
-  <div class="mut">created ${fmt(s.created)} · last interacted ${fmt(s.mtime)} (${ago(s.mtime)})</div>
-  ${tickets(s).length?`<div class="row">${tickets(s).map(k=>`${D.jira?`<a class="badge" href="${D.jira}${k}" target="_blank" rel="noopener">${k}</a>`:`<span class="badge">${k}</span>`}`).join('')}</div>`:''}
-  <div class="q"><b>started:</b> ${link(s.first)}</div><div class="q"><b>last ask:</b> ${link(s.last)}</div><div class="q"><b>last reply:</b> ${link(s.lastAssistant)}</div>
-  <div class="row">${ST.map(k=>`<button class="tag ${s.status===k?'on':''}" data-s="${k}">${k}</button>`).join('')}
-  <input class="note" placeholder="note" value="${esc(s.note)}" style="flex:1;min-width:140px">
-  <button class="rn">rename</button><button class="cp" data-c="cd ${esc(s.cwd)} &amp;&amp; claude --resume ${s.id}">copy resume cmd</button><button class="ho">copy handoff</button><button class="vc" title="read the full conversation here">view chat</button><button class="ot" title="open this session as a live Claude Code terminal">open in terminal</button></div>
-  <details class="cd"><summary>code changes done in this session</summary><div class="cdb mut">loading...</div></details><details class="sk"><summary>skills for this project + suggestions</summary><div class="skb mut">loading...</div></details><details><summary>send prompt to this session</summary>${sendBox(s.id,s.cwd)}</details></div>`}
+  const nm=esc(s.name||s.title||s.first.slice(0,80)||s.id),tk=tickets(s);
+  return `<div class="card" data-id="${s.id}"><h3><span class="tt" title="started: ${esc(s.first.slice(0,200))}">${nm}</span> ${s.running?'<span class="badge run">running</span>':''} <select class="st" title="status" style="border-left:3px solid var(${SC[s.status]})">${ST.map(k=>`<option ${k===s.status?'selected':''}>${k}</option>`).join('')}</select> ${tk.map(k=>D.jira?`<a class="badge" href="${D.jira}${k}" target="_blank" rel="noopener">${k}</a>`:`<span class="badge">${k}</span>`).join(' ')}</h3>
+  <div class="mut" title="id ${s.id} · created ${fmt(s.created)} · last interacted ${fmt(s.mtime)}">${esc(short(s.cwd))} · ${(s.size/1024).toFixed(0)} KB · ${ago(s.mtime)}</div>
+  ${s.note?`<div class="q">&#128221; ${esc(s.note)}</div>`:''}
+  <div class="q c2"><b>last ask:</b> ${link(s.last)}</div><div class="q c2"><b>last reply:</b> ${link(s.lastAssistant)}</div>
+  <div class="row"><button class="vc" title="read the full conversation here">view chat</button><button class="ot" title="open this session as a live Claude Code terminal">open in terminal</button>
+   <span class="mw"><button class="mb" title="more actions">&#8943;</button><div class="mm" hidden><button class="rn">rename</button><button class="nt">edit note</button><button class="cp" data-c="cd ${esc(s.cwd)} &amp;&amp; claude --resume ${s.id}">copy resume cmd</button><button class="ho">copy handoff</button></div></span></div>
+  <details class="dt"><summary>details</summary><div class="tabs"><button data-dt="cd" class="on">code changes</button><button data-dt="sk">skills</button><button data-dt="sn">send prompt</button></div><div class="dtb mut"></div></details></div>`}
 function bind(){
   document.querySelectorAll('.card[data-id]').forEach(c=>{
-    const id=c.dataset.id,note=c.querySelector('.note');
-    c.querySelectorAll('.tag').forEach(b=>b.onclick=async()=>{await api('/api/tag',{id,status:b.dataset.s,note:note.value});load()});
-    note.onchange=async()=>{const s=D.sessions.find(x=>x.id===id);await api('/api/tag',{id,status:s.status,note:note.value});load()};
-    c.querySelector('.rn').onclick=async()=>{const s=D.sessions.find(x=>x.id===id);const n=prompt('Rename session (empty = reset)',s.name||s.title||'');if(n===null)return;await api('/api/tag',{id,name:n.trim()});load()};
+    const id=c.dataset.id,S=()=>D.sessions.find(x=>x.id===id);
+    c.querySelector('.st').onchange=async e=>{const v=e.target.value;await api('/api/tag',{id,status:v});const s=S();if(s)s.status=v;e.target.style.borderLeft='3px solid var('+SC[v]+')'};
+    c.querySelector('.rn').onclick=async()=>{const s=S(),n=prompt('Rename session (empty = reset)',s.name||s.title||'');if(n===null)return;await api('/api/tag',{id,name:n.trim()});s.name=n.trim();c.querySelector('.tt').textContent=s.name||s.title||s.first.slice(0,80)||id};
+    c.querySelector('.nt').onclick=async()=>{const s=S(),n=prompt('Note',s.note||'');if(n===null)return;await api('/api/tag',{id,note:n.trim()});load()};
     c.querySelector('.vc').onclick=()=>openChat(id);
-    c.querySelector('.ot').onclick=()=>{const s=D.sessions.find(x=>x.id===id);openTerm(id,s.cwd)};
+    c.querySelector('.ot').onclick=()=>openTerm(id,S().cwd);
     c.querySelector('.ho').onclick=async e=>{const t=await fetch('/api/handoff?id='+id,{headers:{'x-hub':'1'}}).then(x=>x.text());try{await navigator.clipboard.writeText(t);e.target.textContent='copied'}catch{e.target.textContent='copy failed'}};
     c.querySelector('.cp').onclick=e=>{navigator.clipboard.writeText(e.target.dataset.c.replace(/&amp;/g,'&'));e.target.textContent='copied'};
+    c.querySelector('.mb').onclick=e=>{e.stopPropagation();const m=c.querySelector('.mm'),was=m.hidden;document.querySelectorAll('.mm').forEach(x=>x.hidden=true);m.hidden=!was};
+    const dt=c.querySelector('.dt'),box=c.querySelector('.dtb');
+    const tab=k=>{dt.querySelectorAll('[data-dt]').forEach(x=>x.classList.toggle('on',x.dataset.dt===k));const s=S();box.className='dtb';
+      if(k==='cd'){box.classList.add('mut');box.innerHTML='loading...';api('/api/changes?id='+id).then(r=>box.innerHTML=chHtml(r,''))}
+      else if(k==='sk'){box.classList.add('mut');box.innerHTML='loading...';loadSk(box,id,s.cwd)}
+      else{box.innerHTML=sendBox(id,s.cwd);bindSend(box.querySelector('.send'));box.querySelector('textarea').focus()}};
+    dt.addEventListener('toggle',()=>{if(dt.open&&!dt.dataset.l){dt.dataset.l=1;tab('cd')}});
+    dt.querySelectorAll('[data-dt]').forEach(x=>x.onclick=()=>tab(x.dataset.dt));
   });
-  document.querySelectorAll('.card .cd').forEach(d=>d.addEventListener('toggle',async()=>{if(!d.open||d.dataset.l)return;d.dataset.l=1;d.querySelector('.cdb').innerHTML=chHtml(await api('/api/changes?id='+d.closest('.card').dataset.id),'')}));
-  document.querySelectorAll('.card .sk').forEach(d=>d.addEventListener('toggle',()=>{if(d.open&&!d.dataset.l){d.dataset.l=1;const c=d.closest('.card'),s=D.sessions.find(x=>x.id===c.dataset.id);loadSk(d.querySelector('.skb'),s.id,s.cwd)}}));
-  document.querySelectorAll('.send').forEach(b=>{
+  document.querySelectorAll('.send').forEach(b=>{if(b.dataset.b)return;b.dataset.b=1;bindSend(b)});
+}
+function bindSend(b){
     const ta=b.querySelector('textarea'),live=b.querySelector('.live'),btn=b.querySelector('.go'),stop=b.querySelector('.stop');let ac=null;
     const add=(cls,t)=>{const d=document.createElement('div');d.className='ln '+cls;d.textContent=t;live.appendChild(d);live.scrollTop=live.scrollHeight;return d};
     stop.onclick=()=>ac&&ac.abort();
@@ -174,7 +185,6 @@ function bind(){
       btn.disabled=false;btn.textContent='Send';stop.hidden=true;ac=null;if(b.closest('#newp'))load();else{const a=add('sys','finished — ');const l=document.createElement('a');l.href='#';l.textContent='refresh list';l.onclick=e=>{e.preventDefault();load()};a.appendChild(l)}if(sid&&!b.dataset.id){b.dataset.id=sid;ta.placeholder='follow-up (continues session '+sid.slice(0,8)+')'}
     };
     ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();btn.click()}});
-  });
 }
 function chHtml(c,remote){
   const f=c.files.map(x=>`<div class="mut">${x.writes?'new/overwritten':'edited'} x${x.edits+x.writes} - ${esc(short(x.path))}</div>`).join('')||'<div class="mut">no file edits</div>';
@@ -272,6 +282,7 @@ async function openChat(id,fromRoute){
   b.scrollTop=b.scrollHeight;
   const more=$('#cvm');if(more)more.onclick=async()=>{const q=await api('/api/transcript?id='+id+'&before='+start);const h=b.scrollHeight;$('#cvl').insertAdjacentHTML('afterbegin',q.msgs.map(chatMsg).join(''));start=q.start;if(start>0)more.textContent='load '+start+' earlier messages';else more.remove();b.scrollTop=b.scrollHeight-h}
 }
+document.addEventListener('click',()=>document.querySelectorAll('.mm').forEach(x=>x.hidden=true));
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#chatv')&&!$('#chatv').hidden)closeChat()});
 /* ---- live terminal (real claude in a pty, rendered with xterm.js) ---- */
 const TM=new Map();let curT=null;const HDR={'content-type':'application/json','x-hub':'1'};
