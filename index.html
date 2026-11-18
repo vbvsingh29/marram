@@ -94,7 +94,8 @@ const fmt=t=>t?new Date(t).toLocaleString([],{dateStyle:'medium',timeStyle:'shor
 const link=s=>esc(s).replace(/(https?:\/\/[^\s<)]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>').replace(TRE?new RegExp(TRE.source,'g'):/$^/,(m,o,str)=>!D.jira||str.slice(Math.max(0,o-2),o)==='">'||str.slice(o-1,o)==='/'?m:`<a href="${D.jira}${m}" target="_blank" rel="noopener">${m}</a>`);
 const tickets=s=>TRE?[...new Set(((s.name||'')+' '+s.title+' '+s.first+' '+s.last+' '+s.cwd).match(TRE)||[])]:[];
 const short=c=>c.replace(/^\/home\/[^/]+\//,'~/');
-const rowSig=s=>s.mtime+':'+s.status+':'+(s.running?1:0)+':'+(s.name||'')+':'+(s.note||'');
+// Only changes you would want to see count; a session merely being active (new messages) does not.
+const rowSig=s=>s.status+':'+(s.running?1:0)+':'+(s.name||'')+':'+(s.note||'');
 let lastSig='';
 const sigOf=d=>d.sessions.map(s=>s.id+':'+rowSig(s)).join('|');
 function showUpd(n){let b=$('#upd');if(!b){b=document.createElement('button');b.id='upd';b.className='primary';b.onclick=()=>{b.hidden=true;draw()};document.body.appendChild(b)}b.textContent=n+' session'+(n==1?'':'s')+' updated - click to refresh the list';b.hidden=false}
@@ -103,9 +104,9 @@ async function load(){D=await api('/api/sessions');TK=D.tickets||[];TRE=TK.lengt
 async function poll(){
   if(document.hidden)return;
   const d=await api('/api/sessions').catch(()=>null);if(!d||!d.sessions)return;
-  const sg=sigOf(d);if(sg===lastSig)return;
+  const sg=sigOf(d);if(sg===lastSig){D=d;return}
   const old=new Map(D.sessions.map(s=>[s.id,rowSig(s)]));let n=0;for(const s of d.sessions)if(old.get(s.id)!==rowSig(s))n++;
-  D=d;lastSig=sg;if(n)showUpd(n)}
+  const added=d.sessions.filter(s=>!old.has(s.id)).length;D=d;lastSig=sg;if(n||added)showUpd(n)}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
 function draw(){
   const S=D.sessions.filter(s=>!($('#hb').checked&&(/\/backup(\/|$)/.test(s.repo||s.cwd)||/backup-/.test(s.cwd)))),by={};S.forEach(s=>(by[s.cwd]??=[]).push(s));
