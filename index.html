@@ -42,6 +42,13 @@ select.st{padding:1px 6px;border-radius:10px;font-size:11px;background:var(--hov
 .mw{position:relative}.mm{position:absolute;z-index:6;top:100%;left:0;margin-top:4px;background:var(--panel);border:1px solid var(--bd);border-radius:8px;padding:4px;display:flex;flex-direction:column;min-width:170px;box-shadow:0 6px 20px #0004}.mm[hidden]{display:none}.mm button{text-align:left;border:0;background:none;padding:6px 10px}.mm button:hover{background:var(--hov)}
 .tabs{display:flex;gap:6px;margin:8px 0}.tabs button{padding:2px 10px;font-size:12px}.tabs .on{background:var(--ac);color:var(--acfg);border-color:var(--ac)}
 .card h3 .tt{cursor:default}
+#tabs{position:sticky;top:0;z-index:20;background:var(--bg);margin:0 0 10px;padding:6px 0 0;gap:0;border-bottom:1px solid var(--bd);flex-wrap:nowrap;overflow-x:auto}
+#tabs button{border:0;border-radius:0;background:none;padding:9px 14px;border-bottom:2px solid transparent;color:var(--mut);white-space:nowrap}
+#tabs button:hover{background:var(--hov);color:var(--fg)}
+#tabs button.on{background:none;color:var(--fg);border-bottom-color:var(--ac);font-weight:600}
+#stats{gap:10px;margin:2px 0 10px}#stats .tile{padding:8px 12px;display:flex;align-items:baseline;gap:8px}#stats .tile .n{font-size:20px}
+#stats.min .wide{display:none}
+@media(max-width:800px){#stats .tile{padding:6px 10px}}
 pre{white-space:pre-wrap;margin:6px 0}.cb code{font:12px var(--mono);background:var(--hov);padding:1px 4px;border-radius:4px}
 pre{white-space:pre-wrap;background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:8px;max-height:300px;overflow:auto;font:12px var(--mono)}
 details{margin:8px 0}summary{cursor:pointer;color:var(--ac);font-weight:500}a{color:var(--ac)}
@@ -72,7 +79,7 @@ svg text{fill:var(--mut);font:11px var(--ui)}
 table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:5px 8px;border-bottom:1px solid var(--bd);text-align:left;overflow-wrap:anywhere}th{color:var(--mut);font-weight:500}.tw{overflow-x:auto}
 </style></head><body>
 <aside><h1>Claude Session Hub <button id="th" style="float:right;padding:1px 8px;font-size:11px">theme</button></h1><div class="mut" id="sum"></div><label class="mut" style="display:block;margin:8px 0"><input type="checkbox" id="hb" checked style="padding:0"> hide backup dirs</label><div id="projs"></div></aside>
-<main><div class="bar" id="tabs"></div><div id="chg" hidden></div><div id="newp" hidden></div><div id="trm" hidden></div><div id="skl" hidden></div><div id="hyp" hidden></div><div id="opt" hidden></div><div id="tkt" hidden></div><div id="wtp" hidden></div><div id="srp" hidden></div><div id="sess"><div class="bar"><select id="recent"></select><button id="qs" title="search inside all chat text">search chats</button><input id="q" placeholder="search all sessions" style="flex:1;min-width:160px"></div><div id="stats"></div><div class="bar" id="filters"></div><div id="wtb"></div><div id="rules"></div><div id="list"></div></div></main>
+<main><div class="bar" id="tabs"></div><div id="chg" hidden></div><div id="newp" hidden></div><div id="trm" hidden></div><div id="skl" hidden></div><div id="hyp" hidden></div><div id="opt" hidden></div><div id="tkt" hidden></div><div id="wtp" hidden></div><div id="srp" hidden></div><div id="sess"><div class="bar"><select id="recent"></select><button id="qs" title="full-text search inside every chat">search inside chats</button><input id="q" placeholder="filter sessions by title, folder, ticket or note  ( / )" style="flex:1;min-width:160px"></div><div id="stats"></div><div class="bar" id="filters"></div><div id="wtb"></div><div id="rules"></div><div id="list"></div></div></main>
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -100,9 +107,12 @@ function draw(){
     return `<div class="proj grp ${proj===g.r&&pg?'sel':''}" data-p="${esc(g.r)}" data-g="1"><span>${multi?`<span class="car" data-car="${esc(g.r)}" data-open="${open?1:0}">${open?'&#9662;':'&#9656;'}</span> `:''}${esc(g.r.split('/').pop())}</span><span>${live?'<span class="badge run">live</span> ':''}<span class="badge">${g.l.length}</span></span></div>`+
      (open?ds.map(([d,l])=>`<div class="proj kid ${proj===d&&!pg?'sel':''}" data-p="${esc(d)}"><span>${esc(kid(g.r,d))}</span><span>${l.some(s=>s.running)?'<span class="badge run">live</span> ':''}<span class="badge">${l.length}</span></span></div>`).join(''):'')}).join('');
   document.querySelectorAll('#projs [data-p]').forEach(e=>e.onclick=ev=>{const c=ev.target.closest('[data-car]');if(c){ev.stopPropagation();const r=c.dataset.car,cur=c.dataset.open==='1';openG.set(r,!cur);draw();return}proj=e.dataset.p;pg=!!e.dataset.g;if(pg&&e.querySelector('[data-car]'))openG.set(proj,true);draw();loadRules();if(tab!=='sessions')setTab(tab)});
+  const rs=[...S].sort((a,b)=>b.mtime-a.mtime).slice(0,15);
+  $('#recent').innerHTML='<option value="">Recent chats...</option>'+rs.map(s=>`<option value="${s.id}">${esc((s.name||s.title||s.first.slice(0,50)||s.id).slice(0,60))} &middot; ${ago(s.mtime)}</option>`).join('');
+  $('#recent').onchange=e=>{if(e.target.value)jump(e.target.value)};
   const cnt=k=>S.filter(s=>inProj(s)&&(k==='all'||(k==='running'?s.running:s.status===k))).length;
-  $('#filters').innerHTML=['all','running',...ST].map(k=>`<button class="${flt===k?'on':''}" data-f="${k}">${k} (${cnt(k)})</button>`).join('')+`<button id="vw">${view==='board'?'card view':'board view'}</button><button id="rf">refresh</button>`;
-  document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{flt=b.dataset.f;draw()});$('#rf').onclick=load;$('#vw').onclick=()=>{view=view==='board'?'cards':'board';draw()};
+  $('#filters').innerHTML=['all','running',...ST].map(k=>`<button class="${flt===k?'on':''}" data-f="${k}">${k} (${cnt(k)})</button>`).join('')+`<button id="vw">${view==='board'?'card view':'board view'}</button><button id="ins">${LSx.get('ins')==='1'?'hide insights':'insights'}</button><button id="rf">refresh</button>`;
+  document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{flt=b.dataset.f;draw()});$('#rf').onclick=load;$('#ins').onclick=()=>{LSx.set('ins',LSx.get('ins')==='1'?'0':'1');draw()};$('#vw').onclick=()=>{view=view==='board'?'cards':'board';draw()};
   const qq=($('#q').value||'').toLowerCase();
   const L=S.filter(s=>(!qq||(s.name+' '+s.title+' '+s.first+' '+s.last+' '+s.cwd+' '+s.id+' '+s.note).toLowerCase().includes(qq))&&inProj(s)&&(flt==='all'||(flt==='running'?s.running:s.status===flt)));
   const lk=proj+'|'+pg+'|'+flt+'|'+qq;if(lk!==limKey){limKey=lk;lim=50}
@@ -127,6 +137,7 @@ function stats(S){
   <div class="tile"><div class="n">${n('done')}</div><div class="l">done</div></div>
   <div class="tile wide"><div class="l">By status</div><div class="stack">${seg.map(x=>`<div data-t="${x.k}: ${x.v}" style="flex:${x.v};background:var(${SC[x.k]})"></div>`).join('')}</div><div class="leg">${ST.map(k=>`<span><i style="background:var(${SC[k]})"></i>${k} <b>${n(k)}</b></span>`).join('')}</div></div>
   <div class="tile wide"><div class="l">Sessions last touched, past 14 days</div><svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="sessions per day"><line x1="0" x2="${W}" y1="96" y2="96" stroke="var(--bd)"/><line x1="0" x2="${W}" y1="56" y2="56" stroke="var(--bd)" stroke-dasharray="2 4"/><text x="0" y="52">${Math.round(mx/2)||''}</text><text x="${W}" y="12" text-anchor="end">peak ${mx}</text>${bars}</svg></div>`;
+  $('#stats').classList.toggle('min',LSx.get('ins')!=='1');
   document.querySelectorAll('#stats [data-t]').forEach(e=>tipOn(e,e.dataset.t));
 }
 function sendBox(id,cwd){return `<div class="send" data-id="${esc(id)}" data-cwd="${esc(cwd)}"><textarea placeholder="prompt (runs headless: claude -p${id?' --resume':''})"></textarea><div class="row"><button class="go">Send</button><button class="stop" hidden>Stop</button><select class="mode" title="headless cannot ask permission; tools needing approval are denied unless allowed here"><option value="">default perms</option><option value="acceptEdits">auto-accept edits</option><option value="plan">plan only</option></select><span class="mut">headless run; avoid if this session is open in a terminal right now</span></div><div class="live" hidden></div></div>`}
@@ -500,5 +511,5 @@ document.addEventListener('keydown',e=>{
 });
 if(/^#\/\w+/.test(location.hash))route();else setTab('sessions');
 $('#q').oninput=draw;$('#hb').onchange=draw;
-load().then(()=>{if(proj!=='ALL')loadRules()});setInterval(()=>{if(document.querySelector('#list .live:not([hidden])'))return;if(!document.activeElement||!/INPUT|TEXTAREA/.test(document.activeElement.tagName))load()},10000);
+load().then(()=>{if(proj!=='ALL')loadRules()});setInterval(()=>{if(document.querySelector('#list .live:not([hidden])'))return;if(!document.activeElement||!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName))load()},10000);
 </script><div id="tip"></div></body></html>
