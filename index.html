@@ -77,7 +77,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:5px 8px;b
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ST=['active','later','revisit','done'];
-let hc='',hq='',TK=[],TRE=null,openG=new Map(),pg=false,tab='sessions',D={sessions:[],liveProcs:0,jira:''},focusId='',proj='ALL',flt='all',rulesCache={},view='cards';
+let lim=50,limKey='',hc='',hq='',TK=[],TRE=null,openG=new Map(),pg=false,tab='sessions',D={sessions:[],liveProcs:0,jira:''},focusId='',proj='ALL',flt='all',rulesCache={},view='cards';
 const LSx={get:k=>{try{return localStorage.getItem('hub.'+k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem('hub.'+k,v)}catch{}}};
 try{const t=LSx.get('theme');if(t)document.documentElement.dataset.theme=t;proj=LSx.get('proj')||'ALL';pg=LSx.get('pg')==='1';flt=LSx.get('flt')||'all';view=LSx.get('view')||'cards';openG=new Map(JSON.parse(LSx.get('open')||'[]'))}catch{}
 const api=(p,b)=>fetch(p,b?{method:'POST',headers:{'content-type':'application/json','x-hub':'1'},body:JSON.stringify(b)}:{headers:{'x-hub':'1'}}).then(r=>r.json());
@@ -105,9 +105,11 @@ function draw(){
   document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{flt=b.dataset.f;draw()});$('#rf').onclick=load;$('#vw').onclick=()=>{view=view==='board'?'cards':'board';draw()};
   const qq=($('#q').value||'').toLowerCase();
   const L=S.filter(s=>(!qq||(s.name+' '+s.title+' '+s.first+' '+s.last+' '+s.cwd+' '+s.id+' '+s.note).toLowerCase().includes(qq))&&inProj(s)&&(flt==='all'||(flt==='running'?s.running:s.status===flt)));
-  $('#list').innerHTML=(proj!=='ALL'?`<details open><summary>Send prompt to NEW session in ${esc(short(proj))}</summary>${sendBox('',proj)}</details>`:'')+L.map(card).join('')||'<p class="mut">none</p>';
-  stats(S);if(view==='board'){$('#list').innerHTML=board(L);bindBoard()}else bind();
-  const fc=focusId&&document.querySelector('.card[data-id="'+focusId+'"]');if(fc)fc.classList.add('foc');
+  const lk=proj+'|'+pg+'|'+flt+'|'+qq;if(lk!==limKey){limKey=lk;lim=50}
+  if(focusId){const ix=L.findIndex(s=>s.id===focusId);if(ix>=lim)lim=ix+1}
+  $('#list').innerHTML=(proj!=='ALL'?`<details open><summary>Send prompt to NEW session in ${esc(short(proj))}</summary>${sendBox('',proj)}</details>`:'')+L.slice(0,lim).map(card).join('')+(L.length>lim?`<div class="row"><button id="more">show ${Math.min(50,L.length-lim)} more</button><span class="mut">${L.length-lim} of ${L.length} not shown</span> <button id="all">show all</button></div>`:'')||'<p class="mut">none</p>';
+  stats(S);if($('#more')){$('#more').onclick=()=>{lim+=50;draw()};$('#all').onclick=()=>{lim=1e9;draw()}}if(view==='board'){$('#list').innerHTML=board(L);bindBoard()}else bind();
+  const fc=focusId&&document.querySelector('.card[data-id="'+focusId+'"]');if(fc)fc.classList.add('foc');focusId='';
   syncHash();LSx.set('proj',proj);LSx.set('pg',pg?1:0);LSx.set('flt',flt);LSx.set('view',view);LSx.set('open',JSON.stringify([...openG]));
 }
 const SC={active:'--s1',later:'--s2',revisit:'--s3',done:'--s4'};

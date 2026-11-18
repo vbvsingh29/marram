@@ -17,12 +17,13 @@ Requires Node 20+, `git`, `python3` (terminal view) and the `claude` CLI on your
 
 ```
 node server.js          # http://127.0.0.1:7777
+node server.js --url    # prints the one-time sign-in link; open it once per browser
 ```
 
 Config (environment variables): `PORT` (default 7777), `IDLE_DAYS` (default 30), `JIRA_BASE` and `TICKET_PREFIXES` to link ticket ids. See `claude-session-hub.service.example` to run it at login with systemd.
 
 ## Security model
-It binds to `127.0.0.1` only, rejects other `Host` headers, and requires an `x-hub: 1` header on every write. It can start `claude` in folders under your home directory, delete worktrees you pick, and edit CLAUDE.md files, so do not expose it to a network or reverse-proxy it. Transcripts can contain secrets you pasted into chats; the viewer shows them as stored.
+It binds to `127.0.0.1` only, rejects other `Host` headers, and requires a sign-in: a random 256-bit token in `~/.claude/hub-token` (mode 600), exchanged once via `?k=` for an HttpOnly, SameSite=Strict cookie. Every API call also needs an `x-hub: 1` header, and the page is served with a strict CSP. It can start `claude` in folders under your home directory, delete worktrees you pick, and edit CLAUDE.md files, so do not expose it to a network or reverse-proxy it. Transcripts can contain secrets you pasted into chats; the viewer shows them as stored.
 
 ## Data it writes
 `~/.claude/session-tags.json`, `~/.claude/hub-config.json`, `~/.claude/hub-skills/`, `~/.claude/hub-cache/`, `~/.claude/hub-backups/`. It never edits transcripts (the terminal's "resume from another folder" copies one).
@@ -32,3 +33,6 @@ It binds to `127.0.0.1` only, rejects other `Host` headers, and requires an `x-h
 npm test
 ```
 Uses Node's built-in test runner with a temporary HOME, so it never touches your real `~/.claude`.
+
+## Layout
+`server.js` (bootstrap) -> `lib/routes.js` (HTTP) -> `lib/{skills,worktrees,system}.js` -> `lib/sessions.js` -> `lib/core.js`; `index.html` is the whole UI; `pty-helper.py` backs the terminal view; `agents/skill-advisor.md` is an optional Claude Code subagent.
