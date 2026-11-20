@@ -89,3 +89,9 @@ test('skillNew scaffolds locally and rejects bad names', () => {
   assert.throws(() => sk.skillNew(work, 'my-skill')); assert.throws(() => sk.skillNew(work, '../x'));
   assert.ok(sk.skillNew('global', 'g-skill').path.startsWith(home));
 });
+
+test('vaultEnv: global then project override', () => {
+  const v = require('../lib/vault');
+  v.vaultSet({ name: 'E_ONE', value: 'g1', scope: 'global' }); v.vaultSet({ name: 'E_ONE', value: 'p1', scope: work }); v.vaultSet({ name: 'E_TWO', value: 'g2', scope: 'global' });
+  assert.deepStrictEqual(v.vaultEnv(work), { ...v.vaultEnv(), E_ONE: 'p1' }); assert.strictEqual(v.vaultEnv(work).E_TWO, 'g2'); assert.strictEqual(v.vaultEnv(home).E_ONE, 'g1');
+});
