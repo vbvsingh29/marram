@@ -95,3 +95,10 @@ test('vaultEnv: global then project override', () => {
   v.vaultSet({ name: 'E_ONE', value: 'g1', scope: 'global' }); v.vaultSet({ name: 'E_ONE', value: 'p1', scope: work }); v.vaultSet({ name: 'E_TWO', value: 'g2', scope: 'global' });
   assert.deepStrictEqual(v.vaultEnv(work), { ...v.vaultEnv(), E_ONE: 'p1' }); assert.strictEqual(v.vaultEnv(work).E_TWO, 'g2'); assert.strictEqual(v.vaultEnv(home).E_ONE, 'g1');
 });
+
+test('vault rejects names that could hijack a process', () => {
+  const v = require('../lib/vault');
+  for (const n of ['LD_PRELOAD', 'PATH', 'NODE_OPTIONS', 'GIT_SSH_COMMAND', 'path', 'BASH_ENV']) assert.throws(() => v.vaultSet({ name: n, value: 'x' }), /reserved/);
+  fs.writeFileSync(v.VF, JSON.stringify({ items: [{ id: 'x', name: 'LD_PRELOAD', value: '/evil.so', scope: 'global' }] }));
+  assert.strictEqual(v.vaultEnv(work).LD_PRELOAD, undefined);
+});
