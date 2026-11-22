@@ -65,8 +65,7 @@ test('HTTP guards: sign-in, header, host and input validation', async () => {
     assert.strictEqual((await req(port, 'GET', '/api/sessions', H)).status, 200);
     assert.strictEqual((await req(port, 'GET', '/api/sessions', { ...H, host: 'evil.example' })).status, 403, 'bad Host');
     assert.strictEqual((await req(port, 'POST', '/api/tag', { 'content-type': 'application/json', 'x-hub': '1' }, '{}')).status, 401, 'POST without cookie');
-    assert.match((await req(port, 'POST', '/api/send-stream', H, JSON.stringify({ id: '--bad', cwd: work, prompt: 'x' }))).body, /bad session id/);
-    assert.match((await req(port, 'POST', '/api/send-stream', H, JSON.stringify({ cwd: '/etc', prompt: 'x' }))).body, /cwd missing or outside home/);
+    assert.strictEqual((await req(port, 'POST', '/api/send-stream', H, '{}')).status, 404, 'headless send was removed');
   } finally { hub.server.close(); }
 });
 

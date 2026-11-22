@@ -31,6 +31,7 @@ textarea{width:100%;min-height:70px;font-family:var(--mono);font-size:12px}
 .chip{border:1px solid var(--bd);background:var(--panel);border-radius:999px;padding:3px 10px;cursor:pointer;font-size:12px}.chip.on{border-color:var(--ac);color:var(--ac)}
 #tmain{height:calc(100vh - 120px);min-height:360px}.tv{height:100%;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:6px}.tv .xterm{height:100%}
 button.primary{background:var(--ac);color:var(--acfg);border-color:var(--ac)}
+#npm{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px}#npm[hidden]{display:none}.npb{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:16px;width:min(560px,100%);max-height:90vh;display:flex;flex-direction:column;gap:10px}.npl{overflow:auto;max-height:42vh;border:1px solid var(--bd);border-radius:8px}
 #chatv{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column}#chatv[hidden]{display:none}
 .chd{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--bd);flex-wrap:wrap}
 .cbody{flex:1;overflow:auto;padding:14px 16px;max-width:980px;width:100%;margin:0 auto}
@@ -80,7 +81,7 @@ svg text{fill:var(--mut);font:11px var(--ui)}
 table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:5px 8px;border-bottom:1px solid var(--bd);text-align:left;overflow-wrap:anywhere}th{color:var(--mut);font-weight:500}.tw{overflow-x:auto}
 </style></head><body>
 <aside><h1>AgentHelm <button id="th" style="float:right;padding:1px 8px;font-size:11px">theme</button></h1><div class="mut" id="sum"></div><select id="agsel" title="coding agent" style="width:100%;margin:6px 0"></select><label class="mut" style="display:block;margin:8px 0"><input type="checkbox" id="hb" checked style="padding:0"> hide backup dirs</label><div id="projs"></div></aside>
-<main><div class="bar" id="tabs"></div><div id="chg" hidden></div><div id="newp" hidden></div><div id="trm" hidden></div><div id="skl" hidden></div><div id="lib" hidden></div><div id="hyp" hidden></div><div id="opt" hidden></div><div id="tkt" hidden></div><div id="wtp" hidden></div><div id="srp" hidden></div><div id="sess"><div class="bar"><select id="recent"></select><button id="qs" title="full-text search inside every chat">search inside chats</button><input id="q" placeholder="filter sessions by title, folder, ticket or note  ( / )" style="flex:1;min-width:160px"></div><div id="stats"></div><div class="bar" id="filters"></div><div id="wtb"></div><div id="rules"></div><div id="list"></div></div></main>
+<main><div class="bar" id="tabs"></div><div id="newp" hidden></div><div id="trm" hidden></div><div id="skl" hidden></div><div id="lib" hidden></div><div id="hyp" hidden></div><div id="opt" hidden></div><div id="tkt" hidden></div><div id="wtp" hidden></div><div id="srp" hidden></div><div id="sess"><div class="bar"><select id="recent"></select><button id="qs" title="full-text search inside every chat">search inside chats</button><input id="q" placeholder="filter sessions by title, folder, ticket or note  ( / )" style="flex:1;min-width:160px"></div><div id="stats"></div><div class="bar" id="filters"></div><div id="wtb"></div><div id="rules"></div><div id="list"></div></div></main>
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -133,7 +134,7 @@ function draw(){
   const L=S.filter(s=>(!qq||(s.name+' '+s.title+' '+s.first+' '+s.last+' '+s.cwd+' '+s.id+' '+s.note).toLowerCase().includes(qq))&&inProj(s)&&(flt==='all'||(flt==='running'?s.running:s.status===flt)));
   const lk=proj+'|'+pg+'|'+flt+'|'+qq;if(lk!==limKey){limKey=lk;lim=50}
   if(focusId){const ix=L.findIndex(s=>s.id===focusId);if(ix>=lim)lim=ix+1}
-  $('#list').innerHTML=(proj!=='ALL'?`<details open><summary>Send prompt to NEW session in ${esc(short(proj))}</summary>${sendBox('',proj)}</details>`:'')+L.slice(0,lim).map(card).join('')+(L.length>lim?`<div class="row"><button id="more">show ${Math.min(50,L.length-lim)} more</button><span class="mut">${L.length-lim} of ${L.length} not shown</span> <button id="all">show all</button></div>`:'')||'<p class="mut">none</p>';
+  $('#list').innerHTML=L.slice(0,lim).map(card).join('')+(L.length>lim?`<div class="row"><button id="more">show ${Math.min(50,L.length-lim)} more</button><span class="mut">${L.length-lim} of ${L.length} not shown</span> <button id="all">show all</button></div>`:'')||'<p class="mut">none</p>';
   stats(S);if($('#more')){$('#more').onclick=()=>{lim+=50;draw()};$('#all').onclick=()=>{lim=1e9;draw()}}if(view==='board'){$('#list').innerHTML=board(L);bindBoard()}else bind();
   const fc=focusId&&document.querySelector('.card[data-id="'+focusId+'"]');if(fc)fc.classList.add('foc');focusId='';
   syncHash();LSx.set('proj',proj);LSx.set('pg',pg?1:0);LSx.set('flt',flt);LSx.set('view',view);LSx.set('open',JSON.stringify([...openG]));
@@ -156,24 +157,24 @@ function stats(S){
   $('#stats').classList.toggle('min',LSx.get('ins')!=='1');
   document.querySelectorAll('#stats [data-t]').forEach(e=>tipOn(e,e.dataset.t));
 }
-function sendBox(id,cwd){return `<div class="send" data-id="${esc(id)}" data-cwd="${esc(cwd)}"><textarea placeholder="prompt (runs headless: claude -p${id?' --resume':''})"></textarea><div class="row"><button class="go">Send</button><button class="stop" hidden>Stop</button><select class="mode" title="headless cannot ask permission; tools needing approval are denied unless allowed here"><option value="">default perms</option><option value="acceptEdits">auto-accept edits</option><option value="plan">plan only</option></select><span class="mut">headless run; avoid if this session is open in a terminal right now</span></div><div class="live" hidden></div></div>`}
 function card(s){
   const nm=esc(s.name||s.title||s.first.slice(0,80)||s.id),tk=tickets(s);
-  return `<div class="card" data-id="${s.id}"><h3><span class="tt" title="started: ${esc(s.first.slice(0,200))}">${nm}</span> ${s.running?'<span class="badge run">running</span>':''} <select class="st" title="status" style="border-left:3px solid var(${SC[s.status]})">${ST.map(k=>`<option ${k===s.status?'selected':''}>${k}</option>`).join('')}</select> ${tk.map(k=>D.jira?`<a class="badge" href="${D.jira}${k}" target="_blank" rel="noopener">${k}</a>`:`<span class="badge">${k}</span>`).join(' ')}</h3>
+  return `<div class="card" data-id="${s.id}"><h3><span class="tt" title="started: ${esc(s.first.slice(0,200))}">${nm}</span> ${s.running?'<span class="badge run">running</span>':''}${(D.agents||[]).filter(a=>a.installed).length>1?`<span class="badge">${esc(s.agent||'')}</span>`:''}${s.kind?`<span class="badge">${s.kind}</span>`:''} <select class="st" title="status" style="border-left:3px solid var(${SC[s.status]})">${ST.map(k=>`<option ${k===s.status?'selected':''}>${k}</option>`).join('')}</select> ${tk.map(k=>D.jira?`<a class="badge" href="${D.jira}${k}" target="_blank" rel="noopener">${k}</a>`:`<span class="badge">${k}</span>`).join(' ')}</h3>
   <div class="mut" title="id ${s.id} · created ${fmt(s.created)} · last interacted ${fmt(s.mtime)}">${esc(short(s.cwd))} · ${(s.size/1024).toFixed(0)} KB · ${ago(s.mtime)}</div>
   ${s.note?`<div class="q">&#128221; ${esc(s.note)}</div>`:''}
   <div class="q c2"><b>last ask:</b> ${link(s.last)}</div><div class="q c2"><b>last reply:</b> ${link(s.lastAssistant)}</div>
-  <div class="row"><button class="vc" title="read the full conversation here">view chat</button><button class="ot" title="open this session as a live Claude Code terminal">open in terminal</button>
-   <span class="mw"><button class="mb" title="more actions">&#8943;</button><div class="mm" hidden><button class="rn">rename</button><button class="nt">edit note</button><button class="cp" data-c="cd ${esc(s.cwd)} &amp;&amp; claude --resume ${s.id}">copy resume cmd</button><button class="ho">copy handoff</button></div></span></div>
-  <details class="dt"><summary>details</summary><div class="tabs"><button data-dt="cd" class="on">code changes</button><button data-dt="sk">skills</button><button data-dt="sn">send prompt</button></div><div class="dtb mut"></div></details></div>`}
+  <div class="row"><button class="vc" title="read the full conversation here">view chat</button><button class="ot" title="open this session as a live terminal">open in terminal</button><button class="cc" title="files, commits and PRs from this session">changes</button>
+   <span class="mw"><button class="mb" title="more actions">&#8943;</button><div class="mm" hidden><button class="rn">rename</button><button class="kd">type: ${s.kind||"none"}</button><button class="nt">edit note</button><button class="cp" data-c="cd ${esc(s.cwd)} &amp;&amp; claude --resume ${s.id}">copy resume cmd</button><button class="ho">copy handoff</button></div></span></div>
+  <details class="dt"><summary>details</summary><div class="tabs"><button data-dt="cd" class="on">code changes</button><button data-dt="sk">skills</button></div><div class="dtb mut"></div></details></div>`}
 function bind(){
   document.querySelectorAll('.card[data-id]').forEach(c=>{
     const id=c.dataset.id,S=()=>D.sessions.find(x=>x.id===id);
     c.querySelector('.st').onchange=async e=>{const v=e.target.value;await api('/api/tag',{id,status:v});const s=S();if(s)s.status=v;e.target.style.borderLeft='3px solid var('+SC[v]+')'};
     c.querySelector('.rn').onclick=async()=>{const s=S(),n=prompt('Rename session (empty = reset)',s.name||s.title||'');if(n===null)return;await api('/api/tag',{id,name:n.trim()});s.name=n.trim();c.querySelector('.tt').textContent=s.name||s.title||s.first.slice(0,80)||id};
     c.querySelector('.nt').onclick=async()=>{const s=S(),n=prompt('Note',s.note||'');if(n===null)return;await api('/api/tag',{id,note:n.trim()});load()};
+    c.querySelector('.kd').onclick=async e=>{const s=S(),n=['',...KINDS][(['',...KINDS].indexOf(s.kind||'')+1)%4];await api('/api/tag',{id,kind:n});s.kind=n;e.target.textContent='type: '+(n||'none')};
     c.querySelector('.vc').onclick=()=>openChat(id);
-    c.querySelector('.ot').onclick=()=>openTerm(id,S().cwd);
+    c.querySelector('.ot').onclick=()=>openTerm(id,S().cwd,undefined,S().agent);
     c.querySelector('.ho').onclick=async e=>{const t=await fetch('/api/handoff?id='+id,{headers:{'x-hub':'1'}}).then(x=>x.text());try{await navigator.clipboard.writeText(t);e.target.textContent='copied'}catch{e.target.textContent='copy failed'}};
     c.querySelector('.cp').onclick=e=>{navigator.clipboard.writeText(e.target.dataset.c.replace(/&amp;/g,'&'));e.target.textContent='copied'};
     c.querySelector('.mb').onclick=e=>{e.stopPropagation();const m=c.querySelector('.mm'),was=m.hidden;document.querySelectorAll('.mm').forEach(x=>x.hidden=true);m.hidden=!was};
@@ -181,60 +182,17 @@ function bind(){
     const tab=k=>{dt.querySelectorAll('[data-dt]').forEach(x=>x.classList.toggle('on',x.dataset.dt===k));const s=S();box.className='dtb';
       if(k==='cd'){box.classList.add('mut');box.innerHTML='loading...';api('/api/changes?id='+id).then(r=>box.innerHTML=chHtml(r,''))}
       else if(k==='sk'){box.classList.add('mut');box.innerHTML='loading...';loadSk(box,id,s.cwd)}
-      else{box.innerHTML=sendBox(id,s.cwd);bindSend(box.querySelector('.send'));box.querySelector('textarea').focus()}};
+      else{box.innerHTML=''}};
+    c.querySelector('.cc').onclick=()=>{dt.open=true;tab('cd');dt.dataset.l=1;dt.scrollIntoView({block:'nearest'})};
     dt.addEventListener('toggle',()=>{if(dt.open&&!dt.dataset.l){dt.dataset.l=1;tab('cd')}});
     dt.querySelectorAll('[data-dt]').forEach(x=>x.onclick=()=>tab(x.dataset.dt));
   });
-  document.querySelectorAll('.send').forEach(b=>{if(b.dataset.b)return;b.dataset.b=1;bindSend(b)});
-}
-function bindSend(b){
-    const ta=b.querySelector('textarea'),live=b.querySelector('.live'),btn=b.querySelector('.go'),stop=b.querySelector('.stop');let ac=null;
-    const add=(cls,t)=>{const d=document.createElement('div');d.className='ln '+cls;d.textContent=t;live.appendChild(d);live.scrollTop=live.scrollHeight;return d};
-    stop.onclick=()=>ac&&ac.abort();
-    btn.onclick=async()=>{
-      const prompt=ta.value;if(!prompt.trim())return;
-      btn.disabled=true;btn.textContent='running…';stop.hidden=false;live.hidden=false;live.innerHTML='';
-      add('you','> '+prompt);ta.value='';let cur=null,sid=null;ac=new AbortController();
-      try{
-        const r=await fetch('/api/send-stream',{method:'POST',signal:ac.signal,headers:{'content-type':'application/json','x-hub':'1'},body:JSON.stringify({id:b.dataset.id,cwd:b.dataset.cwd,prompt,mode:b.querySelector('.mode').value})});
-        const rd=r.body.getReader(),dec=new TextDecoder();let buf='';
-        const ev=o=>{
-          if(o.type==='system'&&o.subtype==='init'){sid=o.session_id;add('sys','session '+o.session_id.slice(0,8)+' · '+(o.model||''))}
-          else if(o.type==='stream_event'){const e=o.event||{};
-            if(e.type==='content_block_start'&&e.content_block?.type==='text')cur=add('ai','');
-            else if(e.type==='content_block_delta'&&e.delta?.type==='text_delta'){if(!cur)cur=add('ai','');cur.textContent+=e.delta.text;live.scrollTop=live.scrollHeight}
-            else if(e.type==='content_block_stop')cur=null}
-          else if(o.type==='assistant'){for(const c of o.message?.content||[])if(c.type==='tool_use')add('tool','⏺ '+c.name+' '+JSON.stringify(c.input).slice(0,300))}
-          else if(o.type==='user'){for(const c of o.message?.content||[])if(c.type==='tool_result'){const t=typeof c.content==='string'?c.content:(c.content||[]).map(x=>x.text||'').join('');add(c.is_error?'err':'res','  ⎿ '+t.slice(0,600))}}
-          else if(o.type==='result')add('sys',(o.is_error?'error: ':'done · ')+(o.duration_ms/1000).toFixed(1)+'s'+(o.total_cost_usd?' · $'+o.total_cost_usd.toFixed(3):'')+(o.is_error&&o.result?' · '+o.result:''))
-          else if(o.type==='hub_stderr')add('err',o.text)
-          else if(o.type==='hub_done'&&o.code)add('err','exit code '+o.code)};
-        for(;;){const {done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});let n;while((n=buf.indexOf('\n'))>=0){const ln=buf.slice(0,n);buf=buf.slice(n+1);if(ln.trim())try{ev(JSON.parse(ln))}catch{add('sys',ln)}}}
-      }catch(e){add('err',e.name==='AbortError'?'stopped':String(e))}
-      btn.disabled=false;btn.textContent='Send';stop.hidden=true;ac=null;if(b.closest('#newp'))load();else{const a=add('sys','finished — ');const l=document.createElement('a');l.href='#';l.textContent='refresh list';l.onclick=e=>{e.preventDefault();load()};a.appendChild(l)}if(sid&&!b.dataset.id){b.dataset.id=sid;ta.placeholder='follow-up (continues session '+sid.slice(0,8)+')'}
-    };
-    ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.ctrlKey||e.metaKey)){e.preventDefault();btn.click()}});
 }
 function chHtml(c,remote){
   const f=c.files.map(x=>`<div class="mut">${x.writes?'new/overwritten':'edited'} x${x.edits+x.writes} - ${esc(short(x.path))}</div>`).join('')||'<div class="mut">no file edits</div>';
   const cm=c.commits.map(x=>`<div>${remote?`<a href="${esc(remote)}/commit/${esc(x.hash)}" target="_blank" rel="noopener">${x.hash}</a>`:x.hash} <span class="mut">${esc(x.branch)}</span> ${link(x.msg)}</div>`).join('')||'<div class="mut">no commits</div>';
   const pr=c.prs.map(u=>`<div><a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https:\/\/[^/]+\//,''))}</a></div>`).join('')||'<div class="mut">no PRs</div>';
   return `<b>Files (${c.files.length})</b>${f}<b>Commits (${c.commits.length})</b>${cm}<b>PRs (${c.prs.length})</b>${pr}`}
-async function drawChanges(){
-  const el=$('#chg');
-  if(proj==='ALL'){el.innerHTML='<p class="mut">Pick a project in the sidebar to see its git state and what its sessions changed.</p>';return}
-  el.innerHTML='<p class="mut">loading git info...</p>';
-  const [g,...cs]=await Promise.all([api('/api/git?cwd='+encodeURIComponent(proj)),...D.sessions.filter(inProj).slice(0,20).map(s=>api('/api/changes?id='+s.id).then(c=>({s,c})))]);
-  const sess=D.sessions.filter(inProj).slice(0,20);
-  let h=`<h1>${esc(short(proj))}</h1>`;
-  if(g.error)h+=`<p class="mut">${esc(g.error)}</p>`;else{
-    h+=`<div class="card"><h3>Branch: ${esc(g.branch||'(detached)')}</h3>`+
-      `<b>Pull requests</b>`+(g.prs.map(p=>`<div><a href="${esc(p.url)}" target="_blank" rel="noopener">#${p.number}</a> <span class="badge">${esc(p.state)}</span> ${esc(p.title)}</div>`).join('')||'<div class="mut">none for this branch (or gh not authed)</div>')+
-      `<br><b>Uncommitted (${g.status.length})</b><pre>${esc(g.status.join('\n')||'clean')}</pre>`+
-      `<b>Recent commits</b>`+g.log.map(x=>`<div>${g.remote?`<a href="${esc(g.remote)}/${g.host==='bb'?'commits':'commit'}/${x.hash}" target="_blank" rel="noopener">${x.hash}</a>`:x.hash} ${esc(x.msg)} <span class="mut">- ${esc(x.author)}, ${esc(x.when)}</span></div>`).join('')+`</div>`;}
-  h+='<h1>Changes made by sessions (latest 20)</h1>'+cs.map(({s,c})=>`<div class="card"><h3>${esc(s.name||s.title||s.first.slice(0,70)||s.id)} ${acts(s.id)}</h3><div class="mut">${fmt(s.created)} to ${fmt(s.mtime)}</div>${chHtml(c,g.remote||'')}</div>`).join('');
-  el.innerHTML=h;
-}
 async function loadWtBanner(){
   const b=$('#wtb');b.innerHTML='';if(proj==='ALL'||pg)return;const mine=proj;
   const W=await api('/api/worktrees');if(mine!==proj)return;const r=W.rows.find(x=>x.path===mine);if(!r)return;
@@ -266,17 +224,17 @@ async function loadRules(){
 
 const inProj=s=>proj==='ALL'||(pg?(s.repo||s.cwd)===proj:s.cwd===proj);
 const mb=b=>(b/1048576).toFixed(0)+' MB';
-const TABS=[['sessions','Sessions','sess'],['new','New session','newp'],['term','Terminal','trm'],['changes','Code changes','chg'],['tickets','Tickets','tkt'],['wt','Worktrees','wtp'],['search','Search','srp'],['lib','Library','lib'],['skills','Skills','skl'],['hyped','Hyped','hyp'],['opt','Optimize','opt']];
-function setTab(t,nopush){tab=t;$('#tabs').innerHTML=TABS.map(x=>`<button data-t="${x[0]}" class="${t===x[0]?'on':''}">${x[1]}</button>`).join('');
-  document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
+const TABS=[['sessions','Sessions','sess'],['term','Terminal','trm'],['work','Work items','tkt'],['wt','Worktrees','wtp'],['search','Search','srp'],['lib','Library','lib'],['skills','Skills','skl'],['hyped','Hyped','hyp'],['opt','Optimize','opt']];
+function setTab(t,nopush){tab=t;$('#tabs').innerHTML=TABS.map(x=>`<button data-t="${x[0]}" class="${t===x[0]?'on':''}">${x[1]}</button>`).join('')+'<button id="plus" class="primary" style="margin-left:auto" title="start a new session in a folder">+ New session</button>';
+  $('#plus').onclick=()=>openNew();document.querySelectorAll('#tabs [data-t]').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
   TABS.forEach(x=>$('#'+x[2]).hidden=x[0]!==t);
-  ({changes:drawChanges,new:()=>drawNew(),term:()=>drawTerm(),tickets:drawTickets,wt:drawWt,search:()=>drawSearch(),skills:drawSkills,hyped:()=>drawHype(),opt:drawOpt,lib:drawLib})[t]?.();if(!nopush)syncHash()}
+  ({term:()=>drawTerm(),work:drawTickets,wt:drawWt,search:()=>drawSearch(),skills:drawSkills,hyped:()=>drawHype(),opt:drawOpt,lib:drawLib})[t]?.();if(!nopush)syncHash()}
 
 
 
 const acts=id=>`<span class="acts"><a href="#" data-vc="${id}">view chat</a> <a href="#" data-ot="${id}">open in terminal</a></span>`;
 document.addEventListener('click',e=>{const a=e.target.closest('[data-vc],[data-ot]');if(!a)return;e.preventDefault();e.stopPropagation();
-  const id=a.dataset.vc||a.dataset.ot,s=D.sessions.find(x=>x.id===id);if(!s)return;a.dataset.vc?openChat(id):openTerm(id,s.cwd)},true);
+  const id=a.dataset.vc||a.dataset.ot,s=D.sessions.find(x=>x.id===id);if(!s)return;a.dataset.vc?openChat(id):openTerm(id,s.cwd,undefined,s.agent)},true);
 
 /* ---- URL routing: #/<tab>?p=<project>&g=1&f=<filter>&v=<view>&chat=<session id> ---- */
 let chatId='';
@@ -285,7 +243,7 @@ function syncHash(){const h=curHash();if(h!==location.hash)history[location.hash
 async function route(){
   const m=location.hash.match(/^#\/(\w+)(?:\?(.*))?$/);if(!m)return;const p=new URLSearchParams(m[2]||'');
   proj=p.get('p')||'ALL';const na=p.get('a')||'all';const agentChanged=na!==agent;agent=na;pg=p.get('g')==='1';flt=p.get('f')||'all';view=p.get('v')||'cards';
-  const t=TABS.some(x=>x[0]===m[1])?m[1]:'sessions';setTab(t,true);
+  const t=TABS.some(x=>x[0]===m[1])?m[1]:(m[1]==='tickets'?'work':'sessions');setTab(t,true);
   const c=p.get('chat');
   if(agentChanged&&D.sessions.length)await load();
   if(c){if(!D.sessions.length)await load();else draw();chatId=c;openChat(c,true)}else{chatId='';const o=$('#chatv');if(o)o.hidden=true;if(D.sessions.length)draw()}
@@ -318,14 +276,14 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#chatv')&&!$('#c
 const TM=new Map();let curT=null;const HDR={'content-type':'application/json','x-hub':'1'};
 const tpost=(u,b)=>fetch(u,{method:'POST',headers:HDR,body:JSON.stringify(b)});
 function termTheme(){const d=getComputedStyle(document.documentElement);return{background:d.getPropertyValue('--bg').trim()||'#111418',foreground:d.getPropertyValue('--fg').trim()||'#e8eaee',cursor:'#d97757'}}
-async function openTerm(id,cwd,fallback){
+async function openTerm(id,cwd,fallback,agentId){
   if(typeof Terminal==='undefined'){alert('xterm.js failed to load (needs internet for the CDN)');return}
   setTab('term');await new Promise(r=>setTimeout(r,50));
   const pre=mkTerm();pre.el.hidden=false;TM.forEach(o=>o.el.hidden=true);try{pre.fit.fit()}catch{}
-  const r=await fetch('/api/term-start',{method:'POST',headers:HDR,body:JSON.stringify({id,cwd,fallback,cols:pre.term.cols,rows:pre.term.rows})}).then(x=>x.json());
+  const r=await fetch('/api/term-start',{method:'POST',headers:HDR,body:JSON.stringify({id,cwd,fallback,agent:agentId||'claude',cols:pre.term.cols,rows:pre.term.rows})}).then(x=>x.json());
   if(r.error){pre.term.dispose();pre.el.remove();
     const m=document.createElement('div');m.className='card';m.innerHTML='<b>'+esc(r.error)+'</b>'+(r.suggest?`<p class="mut">You can still read the chat. To continue it, the hub can resume it from <code>${esc(short(r.suggest))}</code> instead (it copies the saved chat file into that folder's history; the original is untouched).</p><div class="row"><button class="primary" id="tfb">Resume from ${esc(short(r.suggest))}</button><button id="tvc">view chat</button></div>`:'');
-    $('#tmain').prepend(m);if(r.suggest){m.querySelector('#tfb').onclick=()=>{m.remove();openTerm(id,cwd,r.suggest)}}m.querySelector('#tvc')&&(m.querySelector('#tvc').onclick=()=>openChat(id));return}
+    $('#tmain').prepend(m);if(r.suggest){m.querySelector('#tfb').onclick=()=>{m.remove();openTerm(id,cwd,r.suggest,agentId)}}m.querySelector('#tvc')&&(m.querySelector('#tvc').onclick=()=>openChat(id));return}
   if(TM.has(r.tid)){pre.term.dispose();pre.el.remove()}else attachTerm(r.tid,r.sid,cwd,pre);
   showTerm(r.tid);
 }
@@ -362,24 +320,28 @@ async function drawTerm(){
   if(!curT||!TM.has(curT))curT=[...TM.keys()][0]||null;
   drawChips();if(curT)showTerm(curT);
 }
-/* ---- new session + directory browser ---- */
+/* ---- new session: "+" button opens a folder + agent popup, then the real terminal ---- */
 let nd='';
-async function drawNew(dir){
-  const el=$('#newp'),r=await api('/api/ls?dir='+encodeURIComponent(dir??nd));
-  if(r.error){el.innerHTML=`<p class="mut">${esc(r.error)}</p><button id="gh">go home</button>`;$('#gh').onclick=()=>drawNew('');return}
+function newAgents(){return (D.agents||[]).filter(a=>a.installed&&a.capabilities.newSession)}
+async function openNew(dir){
+  let m=$('#npm');if(!m){m=document.createElement('div');m.id='npm';m.hidden=true;document.body.appendChild(m);
+    m.addEventListener('click',e=>{if(e.target===m)m.hidden=true});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!m.hidden)m.hidden=true})}
+  const r=await api('/api/ls?dir='+encodeURIComponent(dir??(nd||(proj!=='ALL'?proj:LSx.get('lastdir')||''))));
+  m.hidden=false;
+  if(r.error){m.innerHTML=`<div class="npb"><p class="mut">${esc(r.error)}</p><button id="npg">go home</button></div>`;$('#npg').onclick=()=>openNew('');return}
   nd=r.dir;const rel=r.dir.slice(r.home.length).split('/').filter(Boolean);let acc=r.home;
   const crumbs=[`<a href="#" data-d="${esc(r.home)}">~</a>`,...rel.map(p=>{acc+='/'+p;return `<a href="#" data-d="${esc(acc)}">${esc(p)}</a>`})].join(' / ');
-  el.innerHTML=`<h1>Pick a folder</h1><div class="q">${crumbs}</div>
-  <div class="row"><input id="mk" placeholder="new folder name" style="width:220px"><button id="mkb">Create folder here</button><span class="mut" id="mkm"></span></div>
-  <div class="card"><h3>${esc(short(r.dir))} ${r.git?'<span class="badge">git</span>':''} ${r.claudemd?'<span class="badge">CLAUDE.md</span>':''} <span class="badge">${r.sessions} sessions</span></h3>
-   <div class="mut">Start a session in this folder. Runs headless (claude -p) and the session appears in the list; use the copy button to continue it in a terminal.</div>
-   <div class="row"><button id="tnew" class="primary">Start Claude here (terminal view)</button></div>${sendBox('',r.dir)}<div class="row"><button id="cpn">copy: cd ... &amp;&amp; claude</button></div></div>
-  <div>${r.parent?`<div class="proj" data-d="${esc(r.parent)}"><span>.. (up)</span></div>`:''}${r.dirs.map(d=>`<div class="proj" data-d="${esc(r.dir+'/'+d.name)}"><span>${esc(d.name)}</span><span>${d.git?'<span class="badge">git</span> ':''}${d.claudemd?'<span class="badge">rules</span> ':''}${d.sessions?`<span class="badge">${d.sessions}</span>`:''}</span></div>`).join('')||'<p class="mut">no subfolders</p>'}</div>`;
-  el.querySelectorAll('[data-d]').forEach(a=>a.onclick=e=>{e.preventDefault();drawNew(a.dataset.d)});
-  $('#tnew').onclick=()=>openTerm('',r.dir);
-  $('#cpn').onclick=e=>{navigator.clipboard.writeText('cd "'+r.dir+'" && claude');e.target.textContent='copied'};
-  $('#mkb').onclick=async()=>{const x=await api('/api/mkdir',{parent:r.dir,name:$('#mk').value.trim()});if(x.error)$('#mkm').textContent=x.error;else drawNew(x.dir)};
-  bind();
+  const AG=newAgents(),cur=m.dataset.ag&&AG.some(a=>a.id===m.dataset.ag)?m.dataset.ag:(AG.find(a=>a.id===agent)||AG[0]||{}).id;
+  m.innerHTML=`<div class="npb"><div class="row" style="justify-content:space-between"><h1 style="margin:0">New session</h1><button id="npx">close</button></div>
+  <div class="row"><label class="mut">Agent</label><select id="npa">${AG.map(a=>`<option value="${a.id}" ${a.id===cur?'selected':''}>${esc(a.label)}</option>`).join('')||'<option value="">no agent can start sessions</option>'}</select></div>
+  <div class="q">${crumbs}</div>
+  <div class="npl">${r.parent?`<div class="proj" data-d="${esc(r.parent)}"><span>.. (up)</span></div>`:''}${r.dirs.map(d=>`<div class="proj" data-d="${esc(r.dir+'/'+d.name)}"><span>${esc(d.name)}</span><span>${d.git?'<span class="badge">git</span> ':''}${d.claudemd?'<span class="badge">rules</span> ':''}${d.sessions?`<span class="badge">${d.sessions}</span>`:''}</span></div>`).join('')||'<p class="mut">no subfolders</p>'}</div>
+  <div class="row"><input id="mk" placeholder="new folder name" style="width:200px"><button id="mkb">Create here</button><span class="mut" id="mkm"></span></div>
+  <div class="row" style="justify-content:space-between"><span class="mut">${esc(short(r.dir))} ${r.git?'· git':''} · ${r.sessions} sessions</span><button id="tnew" class="primary" ${cur?'':'disabled'}>Open terminal here</button></div></div>`;
+  m.querySelectorAll('[data-d]').forEach(a=>a.onclick=e=>{e.preventDefault();m.dataset.ag=$('#npa').value;openNew(a.dataset.d)});
+  $('#npx').onclick=()=>m.hidden=true;
+  $('#tnew').onclick=()=>{LSx.set('lastdir',r.dir);const a=$('#npa').value;m.hidden=true;openTerm('',r.dir,undefined,a)};
+  $('#mkb').onclick=async()=>{const x=await api('/api/mkdir',{parent:r.dir,name:$('#mk').value.trim()});if(x.error)$('#mkm').textContent=x.error;else{m.dataset.ag=$('#npa').value;openNew(x.dir)}};
 }
 /* ---- skills ---- */
 async function loadSk(box,id,cwd){
@@ -495,13 +457,27 @@ function bindBoard(){
 }
 function jump(id){focusId=id;proj='ALL';pg=false;flt='all';$('#q').value='';setTab('sessions');draw();const c=document.querySelector(`.card[data-id="${id}"]`);if(c){c.scrollIntoView({block:'center'});c.classList.add('foc')}}
 /* ---- tickets ---- */
+/* ---- work items: sessions grouped by ticket id, GitHub issue/PR, or a feature/bug/chore tag ---- */
+let wk='',wkind='all';
+const KINDS=['feature','bug','chore'];
+const ghRefs=s=>{const out=new Set(),txt=(s.name||'')+' '+s.title+' '+s.first;
+  for(const m of txt.matchAll(/github\.com\/([\w.-]+\/[\w.-]+)\/(?:issues|pull)\/(\d+)/g))out.add(m[1]+'#'+m[2]);
+  const rn=(s.repo||s.cwd).split('/').pop();for(const m of ((s.name||'')+' '+s.title).matchAll(/(?:^|\s)#(\d{1,6})\b/g))out.add(rn+'#'+m[1]);return [...out]};
+const itemLink=k=>/^[\w.-]+\/[\w.-]+#\d+$/.test(k)?'https://github.com/'+k.replace('#','/issues/'):(D.jira&&TRE&&/^[A-Z][A-Z0-9]*-\d+$/.test(k)?D.jira+k:'');
 function drawTickets(){
-  const m={};D.sessions.forEach(s=>[...new Set(((s.name||'')+' '+s.title+' '+s.first+' '+s.cwd).match(TRE||/$^/g)||[])].forEach(k=>(m[k]??=[]).push(s)));
-  const E=Object.entries(m).sort((a,b)=>Math.max(...b[1].map(x=>x.mtime))-Math.max(...a[1].map(x=>x.mtime)));
-  $('#tkt').innerHTML=`<h1>Tickets (${E.length})</h1><div class="mut">Sessions grouped by ticket id (set TICKET_PREFIXES and JIRA_BASE to enable) found in the name, title, first prompt or folder, across all repos.</div><div class="bar"><input id="tq" placeholder="filter ticket or text" style="flex:1"></div><div id="tl"></div>`;
-  const draw2=()=>{const q=($('#tq').value||'').toLowerCase();$('#tl').innerHTML=E.filter(([k,l])=>!q||k.toLowerCase().includes(q)||l.some(s=>(s.name+' '+s.title).toLowerCase().includes(q))).map(([k,l])=>{const repos=[...new Set(l.map(s=>(s.repo||s.cwd).split('/').pop()))];return `<div class="card"><h3>${D.jira?`<a href="${D.jira}${k}" target="_blank" rel="noopener">${k}</a>`:k} <span class="badge">${l.length} sessions</span> ${repos.map(r=>`<span class="badge">${esc(r)}</span>`).join(' ')}</h3>`+l.sort((a,b)=>b.mtime-a.mtime).slice(0,8).map(s=>`<div class="row"><span class="pill st-${s.status}"><i></i>${s.status}</span><a href="#" data-j="${s.id}">${esc(s.name||s.title||s.first.slice(0,70)||s.id)}</a><span class="mut">${esc(short(s.cwd).split('/').pop())} - ${ago(s.mtime)}</span> ${acts(s.id)}</div>`).join('')+`</div>`}).join('')||'<p class="mut">none</p>';
+  const m={};D.sessions.forEach(s=>[...tickets(s),...ghRefs(s)].forEach(k=>(m[k]??=[]).push(s)));
+  const E=Object.entries(m).filter(([k,l])=>wkind==='all'||l.some(s=>s.kind===wkind)).sort((a,b)=>Math.max(...b[1].map(x=>x.mtime))-Math.max(...a[1].map(x=>x.mtime)));
+  const loose=D.sessions.filter(s=>s.kind&&!tickets(s).length&&!ghRefs(s).length&&(wkind==='all'||s.kind===wkind));
+  const row=s=>`<div class="row"><span class="pill st-${s.status}"><i></i>${s.status}</span>${s.kind?`<span class="badge">${s.kind}</span>`:''}<a href="#" data-j="${s.id}">${esc(s.name||s.title||s.first.slice(0,70)||s.id)}</a><span class="mut">${esc(short(s.cwd).split('/').pop())} - ${ago(s.mtime)}</span> ${acts(s.id)}</div>`;
+  $('#tkt').innerHTML=`<h1>Work items</h1><div class="mut">Sessions grouped by what they are for: a ticket id${TK.length?'':' (set TICKET_PREFIXES to enable, JIRA_BASE to link)'}, a GitHub issue or PR (a github.com link, or #123 in the session name), or a feature / bug / chore tag you set from the card menu.</div>
+  <div class="bar"><button data-wk="all" class="${wkind==='all'?'on':''}">all</button>${KINDS.map(k=>`<button data-wk="${k}" class="${wkind===k?'on':''}">${k}</button>`).join('')}<input id="tq" placeholder="filter by id or text" style="flex:1;min-width:160px" value="${esc(wk)}"></div><div id="tl"></div>`;
+  const draw2=()=>{const q=wk.toLowerCase();
+    const g=E.filter(([k,l])=>!q||k.toLowerCase().includes(q)||l.some(s=>(s.name+' '+s.title).toLowerCase().includes(q))).map(([k,l])=>{const repos=[...new Set(l.map(s=>(s.repo||s.cwd).split('/').pop()))],u=itemLink(k);return `<div class="card"><h3>${u?`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(k)}</a>`:esc(k)} <span class="badge">${l.length} sessions</span> ${repos.map(r=>`<span class="badge">${esc(r)}</span>`).join(' ')}</h3>`+l.sort((a,b)=>b.mtime-a.mtime).slice(0,8).map(row).join('')+`</div>`}).join('');
+    const lo=loose.filter(s=>!q||(s.name+' '+s.title).toLowerCase().includes(q));
+    $('#tl').innerHTML=(g||'')+(lo.length?`<div class="card"><h3>Tagged, no ticket <span class="badge">${lo.length}</span></h3>${lo.sort((a,b)=>b.mtime-a.mtime).slice(0,30).map(row).join('')}</div>`:'')||'<p class="mut">nothing yet. Tag a session as feature, bug or chore from its card menu, or put a ticket id or #123 in its name.</p>';
     $('#tl').querySelectorAll('[data-j]').forEach(a=>a.onclick=e=>{e.preventDefault();jump(a.dataset.j)})};
-  $('#tq').oninput=draw2;draw2();
+  $('#tq').oninput=e=>{wk=e.target.value;draw2()};
+  $('#tkt').querySelectorAll('[data-wk]').forEach(b=>b.onclick=()=>{wkind=b.dataset.wk;drawTickets()});draw2();
 }
 /* ---- worktrees ---- */
 async function drawWt(fresh){
