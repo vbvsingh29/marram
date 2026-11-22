@@ -1,9 +1,9 @@
 {
-  "name": "agenthelm",
+  "name": "marram",
   "version": "0.1.0",
   "description": "Local web dashboard to manage your AI coding agent sessions, worktrees and skills, with a live terminal view.",
   "main": "server.js",
-  "bin": { "agenthelm": "server.js" },
+  "bin": { "marram": "server.js" },
   "scripts": { "start": "node server.js",
     "test": "node --test test/*.test.js" },
   "engines": { "node": ">=20" },

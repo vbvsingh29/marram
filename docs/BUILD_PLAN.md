@@ -1,4 +1,4 @@
-# Build plan: multi-agent session manager (working name: AgentDeck, see "Name" below)
+# Build plan: multi-agent session manager (name: Marram; palette: Dune & Tide)
 
 Audience for v1: developers. Plain JavaScript modules, no framework, no build step, no runtime dependencies.
 Terminal-only for running agents (no headless Send). Antigravity is list-only at first; Codex is experimental until tested on a real Codex install.

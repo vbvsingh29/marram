@@ -1,0 +1,14 @@
+# Copy to ~/.config/systemd/user/marram.service, edit paths, then:
+#   systemctl --user daemon-reload && systemctl --user enable --now marram
+[Unit]
+Description=Marram
+
+[Service]
+ExecStart=/usr/bin/node %h/marram/server.js
+Restart=always
+Environment=IDLE_DAYS=30
+# Environment=JIRA_BASE=https://yourco.atlassian.net/browse/
+# Environment=TICKET_PREFIXES=ABC,PROJ
+
+[Install]
+WantedBy=default.target

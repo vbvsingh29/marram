@@ -141,3 +141,17 @@ test('optimize: token counts per transcript, duplicate message ids counted once'
   fs.writeFileSync(f, [a, a, { ...a, requestId: 'r2', message: { ...a.message, id: 'm2' } }].map(x => JSON.stringify(x)).join('\n') + '\n');
   assert.deepStrictEqual(fileTokens(f), { in: 20, out: 10, cr: 200, cc: 40, turns: 2 });
 });
+
+test('UI assets are served only from /web with a safe name, and the page has no inline script', async () => {
+  const port = await new Promise(r => hub.server.listen(0, '127.0.0.1', () => r(hub.server.address().port)));
+  try {
+    const login = await req(port, 'GET', '/?k=' + require('../lib/core').TOKEN, { host: '127.0.0.1:' + port });
+    const ck = (login.headers['set-cookie'] || [''])[0].split(';')[0], H = { host: '127.0.0.1:' + port, cookie: ck, 'x-hub': '1' };
+    assert.strictEqual((await req(port, 'GET', '/web/app.js', H)).status, 200);
+    assert.strictEqual((await req(port, 'GET', '/web/styles.css', H)).status, 200);
+    assert.strictEqual((await req(port, 'GET', '/web/..%2fserver.js', H)).status, 404);
+    assert.strictEqual((await req(port, 'GET', '/web/nope.js', H)).status, 404);
+    assert.strictEqual((await req(port, 'GET', '/web/app.js', { host: '127.0.0.1:' + port })).status, 401, 'needs sign-in');
+    const page = await req(port, 'GET', '/', H); assert.ok(!/<script>[^<]/.test(page.body) && !page.headers['content-security-policy'].includes("script-src 'self' 'unsafe-inline'"));
+  } finally { hub.server.close(); }
+});
