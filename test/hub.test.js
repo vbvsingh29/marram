@@ -134,3 +134,10 @@ test('codex adapter (experimental): lists, reads transcript, builds resume comma
   const t = cx.transcript(id, 0, 50); assert.deepStrictEqual(t.msgs.map(m => m.r), ['u', 'a']);
   assert.deepStrictEqual(cx.resumeCmd({ id }), ['codex', 'resume', id]); assert.ok(cx.experimental); assert.ok(cx.installed());
 });
+
+test('optimize: token counts per transcript, duplicate message ids counted once', () => {
+  const { fileTokens } = require('../lib/optimize'), f = path.join(pdir, 'cccccccc-1111-2222-3333-444444444444.jsonl');
+  const a = { type: 'assistant', requestId: 'r1', message: { id: 'm1', role: 'assistant', content: [], usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 100, cache_creation_input_tokens: 20 } } };
+  fs.writeFileSync(f, [a, a, { ...a, requestId: 'r2', message: { ...a.message, id: 'm2' } }].map(x => JSON.stringify(x)).join('\n') + '\n');
+  assert.deepStrictEqual(fileTokens(f), { in: 20, out: 10, cr: 200, cc: 40, turns: 2 });
+});

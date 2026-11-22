@@ -31,6 +31,7 @@ textarea{width:100%;min-height:70px;font-family:var(--mono);font-size:12px}
 .chip{border:1px solid var(--bd);background:var(--panel);border-radius:999px;padding:3px 10px;cursor:pointer;font-size:12px}.chip.on{border-color:var(--ac);color:var(--ac)}
 #tmain{height:calc(100vh - 120px);min-height:360px}.tv{height:100%;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:6px}.tv .xterm{height:100%}
 button.primary{background:var(--ac);color:var(--acfg);border-color:var(--ac)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;align-items:start}.grid>.card{margin:0}.chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.chips button{border-radius:999px;padding:3px 11px;font-size:12px}
 #npm{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px}#npm[hidden]{display:none}.npb{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:16px;width:min(560px,100%);max-height:90vh;display:flex;flex-direction:column;gap:10px}.npl{overflow:auto;max-height:42vh;border:1px solid var(--bd);border-radius:8px}
 #chatv{position:fixed;inset:0;z-index:50;background:var(--bg);display:flex;flex-direction:column}#chatv[hidden]{display:none}
 .chd{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--bd);flex-wrap:wrap}
@@ -356,7 +357,7 @@ async function loadSk(box,id,cwd){
   box.querySelectorAll('[data-ad]').forEach(a=>a.onclick=async e=>{e.preventDefault();await api('/api/skill-add',{cwd,name:a.dataset.ad});loadSk(box,id,cwd)});
   box.querySelector('[data-defs]').onclick=async()=>{await api('/api/apply-defaults',{cwd});loadSk(box,id,cwd)};
 }
-let sq='';
+let sq='',sf='all';
 let libScope='global';
 async function drawLib(){
   const el=$('#lib'),dirs=[...new Set(D.sessions.map(s=>s.repo||s.cwd))].sort();
@@ -399,13 +400,15 @@ async function drawSkills(){
   const [K,pk]=await Promise.all([api('/api/skills'),proj==='ALL'?[]:api('/api/project-skills?cwd='+encodeURIComponent(proj))]);
   const on=new Set(pk.map(x=>x.name));
   const AU=proj==='ALL'?null:await api('/api/skill-audit?repo='+encodeURIComponent(proj));
-  const L=K.filter(k=>!sq||(k.name+' '+k.desc+' '+k.src).toLowerCase().includes(sq.toLowerCase())).sort((a,b)=>b.isDefault-a.isDefault||b.uses-a.uses||a.name.localeCompare(b.name));
+  const SF={all:()=>1,global:k=>k.src==='global',plugin:k=>k.src==='plugin',library:k=>k.src==='library',defaults:k=>k.isDefault,used:k=>k.uses>0,never:k=>!k.uses,here:k=>on.has(k.name)};
+  const L=K.filter(k=>(SF[sf]||SF.all)(k)&&(!sq||(k.name+' '+k.desc+' '+k.src).toLowerCase().includes(sq.toLowerCase()))).sort((a,b)=>b.isDefault-a.isDefault||b.uses-a.uses||a.name.localeCompare(b.name));
   el.innerHTML=(AU?`<div class="card"><h3>Skill usage in ${esc(short(proj))} <span class="badge">${AU.sessions} sessions</span></h3>${AU.rows.length?AU.rows.slice(0,12).map(r=>`<div class="row"><span class="badge">${r.uses} uses</span><b>${esc(r.name)}</b><span class="mut">${esc(r.src)}${r.enabledHere?' - enabled here':''}</span></div>`).join(''):'<div class="mut">no skills used here yet</div>'}${AU.unusedEnabled.length?`<div class="q">Enabled but never used here: ${AU.unusedEnabled.map(esc).join(', ')}. Consider disabling.</div>`:''}<details><summary>${AU.globalNeverUsed.length} global skills never used in any session</summary><div class="mut">${AU.globalNeverUsed.map(esc).join(', ')||'none'}. Every global skill adds its description to every session; moving unused ones out of ~/.claude/skills saves context.</div></details></div>`:'')+`<h1>All skills (${K.length})</h1><div class="mut">global = loaded in every session. library = installed by this hub, off until enabled per folder. plugin = from an installed plugin. Star = default (one-click apply to a folder). Uses = times Claude invoked it in your transcripts.</div>
   <div class="bar"><input id="sqi" placeholder="search skills" value="${esc(sq)}" style="flex:1;min-width:160px"><button id="top5">Set 5 most-used as defaults</button>${proj!=='ALL'?`<button id="apd">Apply defaults to ${esc(short(proj))}</button>`:'<span class="mut">pick a project in the sidebar to enable skills per folder</span>'}</div>`+
-  L.map(k=>`<div class="card"><h3>${esc(k.name)} <span class="badge">${esc(k.src)}</span> ${k.uses?`<span class="badge">${k.uses} uses</span>`:''} ${k.from?`<a class="badge" href="https://github.com/${esc(k.from)}" target="_blank" rel="noopener">${esc(k.from)}</a>`:''}</h3><div class="q">${esc(k.desc)}</div>
+  `<div class="chips">${[['all','All'],['global','Global'],['plugin','Plugins'],['library','Installed'],['defaults','Defaults'],['used','Used'],['never','Never used'],...(proj!=='ALL'?[['here','Enabled here']]:[])].map(([k,l])=>`<button data-sf="${k}" class="${sf===k?'on':''}">${l} (${K.filter(SF[k]).length})</button>`).join('')}</div><div class="grid">`+L.map(k=>`<div class="card"><h3>${esc(k.name)} <span class="badge">${esc(k.src)}</span> ${k.uses?`<span class="badge">${k.uses} uses</span>`:''} ${k.from?`<a class="badge" href="https://github.com/${esc(k.from)}" target="_blank" rel="noopener">${esc(k.from)}</a>`:''}</h3><div class="q">${esc(k.desc)}</div>
    <div class="row">${k.src!=='global'?`<button data-star="${esc(k.name)}" class="${k.isDefault?'on':''}">${k.isDefault?'default':'make default'}</button>`:''}
    ${proj!=='ALL'&&k.src!=='global'?(on.has(k.name)?`<button data-off="${esc(k.name)}">disable in project</button>`:`<button data-on="${esc(k.name)}">enable in project</button>`):''}
-   ${k.from?`<button data-un="${esc(k.name)}">uninstall</button>`:''}</div></div>`).join('');
+   ${k.from?`<button data-un="${esc(k.name)}">uninstall</button>`:''}</div></div>`).join('')+'</div>';
+  el.querySelectorAll('[data-sf]').forEach(b=>b.onclick=()=>{sf=b.dataset.sf;drawSkills()});
   $('#sqi').oninput=e=>{sq=e.target.value;clearTimeout(window._st);window._st=setTimeout(()=>{drawSkills().then(()=>{const i=$('#sqi');i.focus();i.setSelectionRange(sq.length,sq.length)})},350)};
   $('#top5').onclick=async()=>{await api('/api/skill-defaults-top',{});drawSkills()};
   if($('#apd'))$('#apd').onclick=async()=>{const r=await api('/api/apply-defaults',{cwd:proj});alert('added: '+((r.added||[]).join(', ')||'nothing new'));drawSkills()};
@@ -421,8 +424,8 @@ async function drawHype(){
   const R=await api('/api/hype?kind='+hk+'&cat='+hc+'&q='+encodeURIComponent(hq)),g=`https://www.google.com/search?q=${encodeURIComponent(hk==='skills'?'best claude code skills github':'trending github repositories this week')}`;
   el.innerHTML=`<div class="bar"><button data-k="skills" class="${hk==='skills'?'on':''}">Top skills repos</button><button data-k="repos" class="${hk==='repos'?'on':''}">Hot repos this week</button><button id="hr">refresh</button><a class="badge" href="${g}" target="_blank" rel="noopener">search Google</a></div>
   <div class="bar"><input id="hq" value="${esc(hq)}" placeholder="search skills (e.g. react, postgres, pdf)" style="min-width:260px"><button id="hqg">search</button></div><div class="bar" id="hcs">${[['','All'],['frontend','Frontend'],['backend','Backend'],['ui','UI / design'],['security','Security'],['re','Reverse engineering'],['quality','Code quality'],['testing','Testing'],['devops','DevOps / cloud'],['data','Data / DB'],['ai','AI / agents'],['mobile','Mobile'],['docs','Docs'],['productivity','Productivity'],['git','Git / PRs']].map(([k,l])=>`<button data-c="${k}" class="${hc===k?'on':''}">${l}</button>`).join('')}</div>
-  <div class="mut">Live from the GitHub search API, cached 10 min. Skills are instructions Claude follows and may ship scripts. Install shows a preview first, copies into the hub library (not active anywhere), and never runs repo code.</div>`+
-  (R.error?`<p class="mut">${esc(R.error)}</p>`:!R.length?'<p class="mut">Nothing matched. Try a broader word or another category.</p>':R.map((r,i)=>`<div class="card" data-i="${i}"><h3><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a> <span class="badge">&#9733; ${r.stars.toLocaleString()}</span> ${r.lang?`<span class="badge">${esc(r.lang)}</span>`:''}</h3><div class="q">${esc(r.desc)}</div><div class="mut">updated ${ago(Date.parse(r.pushed))}</div><div class="row"><button class="pv">Preview &amp; install skills</button></div><div class="pvb"></div></div>`).join(''));
+  <div class="mut">Live from the GitHub search API, cached 10 min. Rate-limited when you are not signed in to GitHub: save a <code>GITHUB_TOKEN</code> secret in the Library tab to raise the limit. Skills are instructions Claude follows and may ship scripts. Install shows a preview first, copies into the hub library (not active anywhere), and never runs repo code.</div>`+
+  (R.error?`<p class="mut">${esc(R.error)}</p>`:!R.length?'<p class="mut">Nothing matched. Try a broader word or another category.</p>':'<div class="grid">'+R.map((r,i)=>`<div class="card" data-i="${i}"><h3><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.name)}</a> <span class="badge">&#9733; ${r.stars.toLocaleString()}</span> ${r.lang?`<span class="badge">${esc(r.lang)}</span>`:''}</h3><div class="q">${esc(r.desc)}</div><div class="mut">updated ${ago(Date.parse(r.pushed))}</div><div class="row"><button class="pv">Preview &amp; install skills</button></div><div class="pvb"></div></div>`).join('')+'</div>');
   el.querySelectorAll('[data-k]').forEach(b=>b.onclick=()=>{hk=b.dataset.k;drawHype()});el.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{hc=b.dataset.c;drawHype()});const go=()=>{hq=$('#hq').value;drawHype()};$('#hqg').onclick=go;$('#hq').onkeydown=e=>{if(e.key==='Enter')go()};$('#hr').onclick=drawHype;
   el.querySelectorAll('.pv').forEach(b=>b.onclick=async()=>{
     const c=b.closest('.card'),repo=R[c.dataset.i].name,box=c.querySelector('.pvb');box.innerHTML='<p class="mut">cloning (shallow) and scanning...</p>';
@@ -434,8 +437,33 @@ async function drawHype(){
   });
 }
 /* ---- optimize ---- */
+let ol='session';
+const fmtN=n=>n>=1e9?(n/1e9).toFixed(1)+'B':n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'k':String(n);
+const OLD={session:'Which sessions are big, old or forgotten: the ones to finish, hand off or close.',token:'Where the tokens go, read from your Claude transcripts. Counts only (no prices); numbers are estimates.',system:'What is running on this machine: Claude processes and memory.'};
 async function drawOpt(){
-  const el=$('#opt');el.innerHTML='<p class="mut">reading processes...</p>';
+  const el=$('#opt');
+  el.innerHTML=`<div class="bar">${[['session','Session'],['token','Token'],['system','System']].map(([k,l])=>`<button data-ol="${k}" class="${ol===k?'on':''}">${l}</button>`).join('')}</div><div class="mut">${OLD[ol]}</div><div id="ob"></div>`;
+  el.querySelectorAll('[data-ol]').forEach(b=>b.onclick=()=>{ol=b.dataset.ol;drawOpt()});
+  const b=$('#ob');if(ol==='system')return drawOptSystem(b);if(ol==='token')return drawOptTokens(b);drawOptSessions(b);
+}
+async function drawOptSessions(el){
+  const L=D.sessions.filter(s=>s.status!=='done').sort((a,b)=>b.size-a.size).slice(0,15),p=await api('/api/auto-close-preview');
+  el.innerHTML=`<div class="card"><h3>Biggest open sessions</h3><div class="mut">A big session carries a lot of context into every turn. Finish it, copy a handoff, start fresh, or mark it done.</div>${L.map(s=>`<div class="row"><b>${s.size>1048576?(s.size/1048576).toFixed(1)+' MB':(s.size/1024).toFixed(0)+' KB'}</b><a href="#" data-j="${s.id}">${esc(s.name||s.title||s.first.slice(0,60)||s.id)}</a><span class="mut">${esc(short(s.cwd).split('/').pop())} · ${ago(s.mtime)}</span>${s.running?'<span class="badge run">running</span>':''}<button data-done="${s.id}">mark done</button></div>`).join('')}</div>
+  <div class="card"><h3>Forgotten</h3><div class="mut">${p.n} session(s) idle ${p.days}+ days with no tag are marked done automatically every 6 hours.</div></div>`;
+  el.querySelectorAll('[data-j]').forEach(a=>a.onclick=e=>{e.preventDefault();jump(a.dataset.j)});
+  el.querySelectorAll('[data-done]').forEach(b=>b.onclick=async()=>{await api('/api/tag',{id:b.dataset.done,status:'done'});const s=D.sessions.find(x=>x.id===b.dataset.done);if(s)s.status='done';drawOptSessions(el)});
+}
+async function drawOptTokens(el){
+  el.innerHTML='<p class="mut">reading transcripts (first run can take a few seconds)...</p>';
+  const R=await api('/api/optimize-tokens'),T=R.projects.reduce((a,p)=>({in:a.in+p.in,out:a.out+p.out,cr:a.cr+p.cr,cc:a.cc+p.cc}),{in:0,out:0,cr:0,cc:0}),tot=x=>x.in+x.out+x.cr+x.cc;
+  el.innerHTML=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:8px 0 14px"><div class="tile"><div class="n">${fmtN(T.out)}</div><div class="l">output tokens</div></div><div class="tile"><div class="n">${fmtN(T.in+T.cc)}</div><div class="l">fresh input (incl. cache writes)</div></div><div class="tile"><div class="n">${fmtN(T.cr)}</div><div class="l">cache reads</div></div><div class="tile"><div class="n">~${fmtN(R.skillContext.approxTokens)}</div><div class="l">skill list loaded into every session</div></div></div>
+  <div class="grid"><div class="card"><h3>Skills add context to every session <span class="badge">${R.skillContext.skills} skills</span></h3><div class="mut">Each global or plugin skill puts its name and description in every session (about ${fmtN(R.skillContext.approxTokens)} tokens in total). Turning off ones you never use saves that on every turn.</div>${R.skillContext.biggest.map(k=>`<div class="row"><span class="badge">~${k.approxTokens}</span><b>${esc(k.name)}</b><span class="mut">${esc(k.src)}</span></div>`).join('')}</div>
+  <div class="card"><h3>By project</h3>${R.projects.slice(0,10).map(p=>`<div class="row"><b>${fmtN(tot(p))}</b><span>${esc(short(p.repo))}</span><span class="mut">${p.sessions} sessions · out ${fmtN(p.out)}</span></div>`).join('')||'<p class="mut">no usage data</p>'}</div>
+  <div class="card"><h3>Heaviest sessions</h3>${R.top.slice(0,10).map(s=>`<div class="row"><b>${fmtN(tot(s))}</b><a href="#" data-j="${s.id}">${esc(s.title)}</a><span class="mut">${s.turns} turns</span></div>`).join('')}</div></div>`;
+  el.querySelectorAll('[data-j]').forEach(a=>a.onclick=e=>{e.preventDefault();jump(a.dataset.j)});
+}
+async function drawOptSystem(el){
+  el.innerHTML='<p class="mut">reading processes...</p>';
   const R=await api('/api/procs'),idle=R.procs.filter(p=>!p.busy),fr=idle.reduce((a,p)=>a+p.rss,0);
   el.innerHTML=`<div id="stats2" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:4px 0 14px"><div class="tile"><div class="n">${R.procs.length}</div><div class="l">claude processes</div></div><div class="tile"><div class="n">${mb(R.total)}</div><div class="l">memory used by claude</div></div><div class="tile"><div class="n">${mb(R.mem.avail)}</div><div class="l">free of ${mb(R.mem.total)} RAM</div></div></div>
   <div class="bar"><button id="ci" ${idle.length?'':'disabled'}>Close all idle (${idle.length}, frees ~${mb(fr)})</button><button id="rfo">refresh</button></div>
