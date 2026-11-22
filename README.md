@@ -16,15 +16,23 @@ One local dashboard for all your AI coding agent sessions. Reads what your agent
 Use the agent dropdown in the sidebar to filter. Agents that are not installed are greyed out.
 
 ## Features
-- **Sessions** across all projects, grouped by repo with worktrees nested; status tags (active / later / revisit / done), rename, notes, feature / bug / chore type; list and board views.
-- **+ New session**: pick an agent and a folder, then work in the real terminal (xterm.js) like in your own shell.
-- **Chat viewer** and full-text search across transcripts. A **changes** button on each card shows files, commits and PRs.
+- **Sessions** across all projects, grouped by repo with worktrees nested. Status (active / later / revisit / done / closed, closed can be reopened), notes, feature / bug / chore type, pins, list and board views. A strip at the top shows your pinned sessions and what you touched last.
+- **Ctrl+K command palette** to jump to any session, project or tab, or run an action. **Select** several sessions to tag them at once.
+- **+ New session**: pick an agent and a folder (optionally in a fresh git worktree), then work in the real terminal (xterm.js). Split view shows two terminals side by side. A **Prompts** menu inserts your saved prompts.
+- **Watch**: sessions waiting for you, two sessions editing the same file or folder, secrets pasted into chats, heavy context. Optional desktop alerts when a session ends.
+- **Daily update**: a plain-language summary of what you worked on (today, yesterday or the week), ready to paste into Slack or a meeting.
+- **Chat viewer**, full-text search, and a **changes** view per session with files, commits and the pull request and its checks (GitHub).
 - **Work items**: sessions grouped by ticket id (optional Jira link), GitHub issue / PR, or your own type tag.
 - **Worktrees**: scan, filter and remove idle, dirty or missing worktrees safely.
-- **Library**: global and per-project rules (`CLAUDE.md`), skills, and a secrets vault. Secrets are injected as environment variables into sessions started from the hub.
-- **Skills** and **Hyped**: usage, enable per folder, defaults, and discover / preview / install skills from GitHub into a local library.
-- **Optimize** at three levels: *session* (big and forgotten sessions), *token* (counts from your transcripts, skill context cost) and *system* (processes, memory).
+- **Library**: global and per-project rules (`CLAUDE.md`), skills, saved prompts, a decisions note that is added to new sessions, a secrets vault (injected as environment variables into sessions started here), and backup / restore.
+- **Skills** and **Hyped**: usage, enable per folder, discover / preview / install skills from GitHub.
+- **Optimize**: big and forgotten sessions, token counts and optional costs from your own prices, processes and memory, and opt-in stopping of idle sessions.
+- **Close for good**: stops a session's process and deletes its chat after you type `DELETE`. It cannot be undone.
+- **Read-only mode** for demos and screen sharing, and a small activity log of what Marram itself did.
 - Deep links for every view, e.g. `#/sessions?a=antigravity`, `#/work`, `#/sessions?chat=<session id>`.
+
+## Platforms
+Linux is the tested platform. macOS is covered by the test suite in CI; live "running" detection there relies on the session files Claude writes, so it is less exact. Windows runs the dashboard and tests, but the terminal view needs a Unix pty: use WSL. CI results are the source of truth.
 
 ## Run
 Requires Node 20+, `git`, `python3` (terminal view) and at least one agent CLI (`claude`, `codex`) or Antigravity data on this machine. Optional: `gh` for PR info.
@@ -41,7 +49,7 @@ Config (environment variables): `PORT` (default 7777), `IDLE_DAYS` (default 30),
 It binds to `127.0.0.1` only, rejects other `Host` headers, and requires a sign-in: a random 256-bit token in `~/.claude/hub-token` (mode 600), exchanged once via `?k=` for an HttpOnly, SameSite=Strict cookie. Every API call also needs an `x-hub: 1` header, and the page is served with a strict CSP. It can start `claude` in folders under your home directory, delete worktrees you pick, and edit CLAUDE.md files, so do not expose it to a network or reverse-proxy it. Transcripts can contain secrets you pasted into chats; the viewer shows them as stored.
 
 ## Data it writes
-`~/.claude/session-tags.json`, `~/.claude/hub-config.json`, `~/.claude/hub-vault.json` (secrets, mode 600, plain text like `~/.git-credentials`), `~/.claude/hub-skills/`, `~/.claude/hub-cache/`, `~/.claude/hub-backups/`. It never edits transcripts (the terminal's "resume from another folder" copies one).
+`~/.claude/session-tags.json`, `~/.claude/hub-config.json`, `~/.claude/hub-notes.json`, `~/.claude/hub-snippets.json`, `~/.claude/hub-activity.json`, `~/.claude/hub-vault.json` (secrets, mode 600, plain text like `~/.git-credentials`), `~/.claude/hub-skills/`, `~/.claude/hub-cache/`, `~/.claude/hub-backups/`. It never edits transcripts (the terminal's "resume from another folder" copies one).
 
 ## Tests
 ```

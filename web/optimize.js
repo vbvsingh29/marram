@@ -6,7 +6,7 @@ async function drawOpt(){
   const el=$('#opt');
   el.innerHTML=`<div class="bar">${[['session','Session'],['token','Token'],['system','System']].map(([k,l])=>`<button data-ol="${k}" class="${ol===k?'on':''}">${l}</button>`).join('')}</div><div class="mut">${OLD[ol]}</div><div id="ob"></div>`;
   el.querySelectorAll('[data-ol]').forEach(b=>b.onclick=()=>{ol=b.dataset.ol;drawOpt()});
-  const b=$('#ob');if(ol==='system')return drawOptSystem(b);if(ol==='token')return drawOptTokens(b);drawOptSessions(b);
+  const b=$('#ob');if(ol==='system'){await drawOptSystem(b);return autoStopCard(b)}if(ol==='token')return drawOptTokens(b);drawOptSessions(b);
 }
 async function drawOptSessions(el){
   const L=D.sessions.filter(s=>s.status!=='done'&&s.status!=='closed').sort((a,b)=>b.size-a.size).slice(0,15),p=await api('/api/auto-close-preview');

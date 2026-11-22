@@ -3,10 +3,40 @@
   "version": "0.1.0",
   "description": "Local web dashboard to manage your AI coding agent sessions, worktrees and skills, with a live terminal view.",
   "main": "server.js",
-  "bin": { "marram": "server.js" },
-  "scripts": { "start": "node server.js",
-    "test": "node --test test/*.test.js" },
-  "engines": { "node": ">=20" },
+  "bin": {
+    "marram": "server.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "license": "MIT",
-  "private": true
+  "private": true,
+  "files": [
+    "server.js",
+    "index.html",
+    "pty-helper.py",
+    "lib/",
+    "web/",
+    "agents/",
+    "docs/demo.gif",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "claude-code",
+    "codex",
+    "antigravity",
+    "ai-agents",
+    "session-manager",
+    "dashboard",
+    "worktrees"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vbvsingh29/marram.git"
+  }
 }

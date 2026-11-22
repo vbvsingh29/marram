@@ -1,5 +1,5 @@
 /* ---- live terminal (real claude in a pty, rendered with xterm.js) ---- */
-const TM=new Map();let curT=null;const HDR={'content-type':'application/json','x-hub':'1'};
+const TM=new Map();let curT=null,prevT=null,split=(()=>{try{return localStorage.getItem('hub.split')==='1'}catch{return false}})();const HDR={'content-type':'application/json','x-hub':'1'};
 const tpost=(u,b)=>fetch(u,{method:'POST',headers:HDR,body:JSON.stringify(b)});
 function termTheme(){const d=getComputedStyle(document.documentElement);return{background:d.getPropertyValue('--bg').trim()||'#111418',foreground:d.getPropertyValue('--fg').trim()||'#e8eaee',cursor:'#d97757'}}
 async function openTerm(id,cwd,fallback,agentId){
@@ -31,8 +31,11 @@ function attachTerm(tid,sid,cwd,pre){
     o.alive=false;term.write('\r\n\x1b[2m[process ended - press "open in terminal" to resume this session]\x1b[0m\r\n');drawChips();poll()})();
 }
 function showTerm(tid){
-  curT=tid;TM.forEach(o=>o.el.hidden=o.tid!==tid);const o=TM.get(tid);drawChips();
-  if(o){setTimeout(()=>{try{o.fit.fit()}catch{};o.term.focus()},30)}
+  if(curT&&curT!==tid)prevT=curT;curT=tid;
+  const show=new Set([tid]);if(split&&prevT&&prevT!==tid&&TM.has(prevT))show.add(prevT);
+  TM.forEach(o=>o.el.hidden=!show.has(o.tid));const mn=$('#tmain');if(mn)mn.classList.toggle('split2',show.size===2);
+  drawChips();setTimeout(()=>{show.forEach(t=>{const o=TM.get(t);try{o&&o.fit.fit()}catch{}});const o=TM.get(tid);if(o)o.term.focus()},40);
+  if(typeof paintPromptMenu==='function')paintPromptMenu();
 }
 function drawChips(){const c=$('#tchips');if(!c)return;
   c.innerHTML=[...TM.values()].map(o=>`<span class="chip ${o.tid===curT?'on':''}" data-t="${o.tid}">${o.alive?'●':'○'} ${esc(short(o.cwd))} <span class="mut">${o.sid.slice(0,6)}</span> <a href="#" data-x="${o.tid}" title="${o.alive?'stop & close':'close'}">✕</a></span>`).join('')||'<span class="mut">no terminals open. Use "open in terminal" on a session card, or New session → Start Claude here.</span>';
@@ -40,7 +43,7 @@ function drawChips(){const c=$('#tchips');if(!c)return;
   c.querySelectorAll('[data-x]').forEach(a=>a.onclick=e=>{e.preventDefault();e.stopPropagation();const o=TM.get(a.dataset.x);tpost('/api/term-kill',{tid:o.tid,forget:1});o.term.dispose();o.el.remove();TM.delete(o.tid);if(curT===o.tid){curT=[...TM.keys()][0]||null;if(curT)showTerm(curT)}drawChips();poll()})}
 async function drawTerm(){
   const root=$('#trm');
-  if(!$('#tmain')){root.innerHTML='<div class="bar"><div id="tchips" class="bar" style="margin:0"></div></div><div id="tmain"></div>'}
+  if(!$('#tmain')){root.innerHTML='<div class="bar"><div id="tchips" class="bar" style="margin:0"></div><button id="tsplit" title="show two terminals side by side">'+(split?'single view':'split view')+'</button><select id="tsn" title="saved prompts"><option value="">Prompts...</option></select></div><div id="tmain"></div>';$('#tsplit').onclick=()=>{split=!split;LSx.set('split',split?'1':'0');$('#tsplit').textContent=split?'single view':'split view';if(split&&(!prevT||prevT===curT))prevT=[...TM.keys()].find(t=>t!==curT)||null;if(curT)showTerm(curT)}}
   const L=await fetch('/api/terms',{headers:{'x-hub':'1'}}).then(r=>r.json()).catch(()=>[]);
   for(const t of L)if(t.alive&&!TM.has(t.tid)){attachTerm(t.tid,t.sid,t.cwd)}
   if(!curT||!TM.has(curT))curT=[...TM.keys()][0]||null;

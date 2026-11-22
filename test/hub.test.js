@@ -1,6 +1,6 @@
 const test = require('node:test'), assert = require('node:assert'), fs = require('fs'), os = require('os'), path = require('path'), http = require('http');
 const home = fs.mkdtempSync(path.join(os.tmpdir(), 'hub-test-'));
-process.env.HOME = home; // must be set before server.js is loaded
+process.env.HOME = home; process.env.USERPROFILE = home; // must be set before server.js is loaded (HOME on Linux/macOS, USERPROFILE on Windows)
 const work = path.join(home, 'projects', 'demo'); fs.mkdirSync(work, { recursive: true });
 const pdir = path.join(home, '.claude', 'projects', '-demo'); fs.mkdirSync(pdir, { recursive: true });
 const ID = '11111111-2222-3333-4444-555555555555';
@@ -53,7 +53,7 @@ test('HTTP guards: sign-in, header, host and input validation', async () => {
   const C = { cookie: 'hub_tok=' + tok }, H = { ...C, 'x-hub': '1', 'content-type': 'application/json' };
   try {
     assert.strictEqual(tok.length, 64);
-    assert.strictEqual((fs.statSync(path.join(home, '.claude', 'hub-token')).mode & 0o777), 0o600, 'token file is private');
+    if (process.platform !== 'win32') assert.strictEqual((fs.statSync(path.join(home, '.claude', 'hub-token')).mode & 0o777), 0o600, 'token file is private');
     assert.strictEqual((await req(port, 'GET', '/api/sessions', { 'x-hub': '1' })).status, 401, 'no cookie');
     assert.strictEqual((await req(port, 'GET', '/')).status, 401, 'page needs sign-in');
     assert.strictEqual((await req(port, 'GET', '/?k=wrong')).status, 403, 'wrong key');
@@ -76,7 +76,7 @@ test('vault: values never listed, file is 0600, project overrides global', () =>
   v.vaultSet({ name: 'BB_TOKEN', value: 'GVAL9', scope: 'global' });
   const id = v.vaultSet({ name: 'BB_TOKEN', value: 'PVAL9', scope: work }).id;
   assert.ok(!JSON.stringify(v.vaultList()).includes('PVAL9'));
-  assert.strictEqual(fs.statSync(v.VF).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') assert.strictEqual(fs.statSync(v.VF).mode & 0o777, 0o600);
   assert.strictEqual(v.vaultResolve('BB_TOKEN', work), 'PVAL9');
   assert.strictEqual(v.vaultResolve('BB_TOKEN', home), 'GVAL9');
   assert.throws(() => v.vaultSet({ name: 'bad name', value: 'x' }));
@@ -182,7 +182,7 @@ test('notes: per-project decisions are stored privately and reach the claude new
   assert.deepStrictEqual(cl.newCmd(work, ID), ['claude', '--session-id', ID]);
   n.setNote(work, 'use the repo helper, not raw SQL');
   const c = cl.newCmd(work, ID); assert.strictEqual(c[3], '--append-system-prompt'); assert.ok(c[4].includes('repo helper'));
-  assert.strictEqual(fs.statSync(path.join(home, '.claude', 'hub-notes.json')).mode & 0o777, 0o600);
+  if (process.platform !== 'win32') assert.strictEqual(fs.statSync(path.join(home, '.claude', 'hub-notes.json')).mode & 0o777, 0o600);
   n.setNote(work, ''); assert.strictEqual(n.getNote(work), '');
 });
 
@@ -230,3 +230,40 @@ test('closed is a normal status: it can be set and reopened through the tag API,
     assert.ok(fs.existsSync(path.join(pdir, ID + '.jsonl')), 'closing never deletes the chat');
   } finally { hub.server.close(); }
 });
+
+test('snippets: saved per scope, validated, never contain more than the limits', () => {
+  const sn = require('../lib/snippets'); const a = sn.set({ scope: 'global', name: 'Review diff', text: 'Review my diff for bugs.' }); sn.set({ scope: work, name: 'Run tests', text: 'Run the tests and fix failures.' });
+  const l = sn.list(work); assert.strictEqual(l.global.length, 1); assert.strictEqual(l.project.length, 1);
+  assert.throws(() => sn.set({ scope: 'global', name: '', text: 'x' })); assert.throws(() => sn.set({ scope: '/etc', name: 'x', text: 'y' }));
+  sn.del({ scope: 'global', id: a.id }); assert.strictEqual(sn.list(work).global.length, 0);
+});
+
+test('backup: export has no secrets or chats, import only adds what is missing', () => {
+  const b = require('../lib/backup'), v = require('../lib/vault'); try { v.vaultSet({ name: 'BK_SECRET', value: 'topsecretvalue9', scope: 'global' }); } catch {}
+  const e = b.exportAll(); assert.ok(!JSON.stringify(e).includes('topsecretvalue9') && e.marram === 1);
+  const tf = path.join(home, '.claude', 'session-tags.json'); fs.writeFileSync(tf, JSON.stringify({ 'aaaaaaaa-0000-1111-2222-333333333333': { status: 'later' } }));
+  const r = b.importAll({ marram: 1, tags: { 'aaaaaaaa-0000-1111-2222-333333333333': { status: 'done' }, 'bbbbbbbb-0000-1111-2222-333333333333': { status: 'closed', pin: true, kind: 'bug' }, '../x': { status: 'done' } } });
+  const t = JSON.parse(fs.readFileSync(tf, 'utf8')); assert.strictEqual(t['aaaaaaaa-0000-1111-2222-333333333333'].status, 'later'); assert.deepStrictEqual(t['bbbbbbbb-0000-1111-2222-333333333333'], { status: 'closed', kind: 'bug', pin: true }); assert.ok(!t['../x']); assert.strictEqual(r.added, 1);
+  assert.throws(() => b.importAll({ nope: 1 }), /not a Marram export/);
+});
+
+test('activity log keeps the last entries without chat text; github remotes are parsed', () => {
+  const a = require('../lib/activity'); for (let i = 0; i < 3; i++) a.log('closed for good', 'title ' + i);
+  assert.strictEqual(a.recent(2)[0].detail, 'title 2'); const pr = require('../lib/prstatus');
+  assert.deepStrictEqual(pr.parse('git@github.com:acme/shop.git'), { owner: 'acme', repo: 'shop' }); assert.deepStrictEqual(pr.parse('https://github.com/acme/shop'), { owner: 'acme', repo: 'shop' }); assert.strictEqual(pr.parse('https://bitbucket.org/a/b'), null);
+});
+
+test('read-only mode blocks every change except turning it off; bulk tag validates ids and status', async () => {
+  const port = await new Promise(r => hub.server.listen(0, '127.0.0.1', () => r(hub.server.address().port))), tok = fs.readFileSync(path.join(home, '.claude', 'hub-token'), 'utf8').trim();
+  const H = { host: '127.0.0.1:' + port, cookie: 'hub_tok=' + tok, 'x-hub': '1', 'content-type': 'application/json' }, post = (p, o) => req(port, 'POST', p, H, JSON.stringify(o));
+  try {
+    await post('/api/tag-many', { ids: [ID, '../x'], status: 'later' }); assert.strictEqual(JSON.parse((await req(port, 'GET', '/api/sessions', H)).body).sessions.find(s => s.id === ID).status, 'later');
+    await post('/api/tag-many', { ids: [ID], status: 'bogus' }); assert.strictEqual(JSON.parse((await req(port, 'GET', '/api/sessions', H)).body).sessions.find(s => s.id === ID).status, 'later');
+    await post('/api/readonly', { on: true }); const blocked = await post('/api/tag', { id: ID, status: 'done' }); assert.match(blocked.body, /Read-only mode is on/);
+    assert.match((await post('/api/vault-get', { id: 'x' })).body, /Read-only/); assert.match((await post('/api/term-start', { cwd: work })).body, /Read-only/);
+    assert.strictEqual(JSON.parse((await req(port, 'GET', '/api/mode', H)).body).readOnly, true); await post('/api/readonly', { on: false });
+    assert.ok(!/Read-only/.test((await post('/api/tag', { id: ID, status: 'active' })).body));
+  } finally { hub.server.close(); }
+});
+
+test('auto-stop does nothing below 15 minutes', () => { assert.strictEqual(require('../lib/system').autoStopIdle(5), 0); assert.strictEqual(require('../lib/system').autoStopIdle(0), 0); });

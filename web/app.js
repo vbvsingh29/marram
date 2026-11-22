@@ -26,7 +26,7 @@ async function poll(){
   notifyDone(D,d);
   const sg=sigOf(d);if(sg===lastSig){D=d;return}
   const old=new Map(D.sessions.map(s=>[s.id,rowSig(s)]));let n=0;for(const s of d.sessions)if(old.get(s.id)!==rowSig(s))n++;
-  const added=d.sessions.filter(s=>!old.has(s.id)).length;D=d;lastSig=sg;if(n||added)showUpd(n)}
+  const added=d.sessions.filter(s=>!old.has(s.id)).length;D=d;lastSig=sg;patchLive();if(n||added)showUpd(n)}
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)poll()});
 function draw(){
   const S=D.sessions.filter(s=>!($('#hb').checked&&(/\/backup(\/|$)/.test(s.repo||s.cwd)||/backup-/.test(s.cwd)))),by={};S.forEach(s=>(by[s.cwd]??=[]).push(s));
@@ -45,8 +45,8 @@ function draw(){
   $('#recent').innerHTML='<option value="">Recent chats...</option>'+rs.map(s=>`<option value="${s.id}">${esc((s.name||s.title||s.first.slice(0,50)||s.id).slice(0,60))} &middot; ${ago(s.mtime)}</option>`).join('');
   $('#recent').onchange=e=>{if(e.target.value)jump(e.target.value)};
   const cnt=k=>S.filter(s=>inProj(s)&&(k==='all'||(k==='running'?s.running:s.status===k))).length;
-  $('#filters').innerHTML=['all','running',...ST].map(k=>`<button class="${flt===k?'on':''}" data-f="${k}">${k} (${cnt(k)})</button>`).join('')+`<button id="vw">${view==='board'?'card view':'board view'}</button><button id="ins">${LSx.get('ins')==='1'?'hide insights':'insights'}</button><button id="rf">refresh</button>`;
-  document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{flt=b.dataset.f;draw()});$('#rf').onclick=load;$('#ins').onclick=()=>{LSx.set('ins',LSx.get('ins')==='1'?'0':'1');draw()};$('#vw').onclick=()=>{view=view==='board'?'cards':'board';draw()};
+  $('#filters').innerHTML=['all','running',...ST].map(k=>`<button class="${flt===k?'on':''}" data-f="${k}">${k} (${cnt(k)})</button>`).join('')+`<button id="vw">${view==='board'?'card view':'board view'}</button><button id="rpb">daily update</button><button id="ins">${LSx.get('ins')==='1'?'hide insights':'insights'}</button><button id="rf">refresh</button>`;
+  document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{flt=b.dataset.f;draw()});$('#rf').onclick=load;$('#rpb').onclick=()=>openReport();$('#ins').onclick=()=>{LSx.set('ins',LSx.get('ins')==='1'?'0':'1');draw()};$('#vw').onclick=()=>{view=view==='board'?'cards':'board';draw()};
   const qq=($('#q').value||'').toLowerCase();
   const L=S.filter(s=>(!qq||(s.name+' '+s.title+' '+s.first+' '+s.last+' '+s.cwd+' '+s.id+' '+s.note).toLowerCase().includes(qq))&&inProj(s)&&(flt==='all'||(flt==='running'?s.running:s.status===flt)));
   const lk=proj+'|'+pg+'|'+flt+'|'+qq;if(lk!==limKey){limKey=lk;lim=50}
@@ -76,12 +76,12 @@ function stats(S){
 }
 function card(s){
   const cp=capsOf(s),nm=esc(s.name||s.title||s.first.slice(0,80)||s.id),tk=tickets(s);
-  return `<div class="card" data-id="${s.id}"><h3><span class="tt" title="started: ${esc(s.first.slice(0,200))}">${nm}</span> ${s.running?'<span class="badge run">running</span>':''}${(D.agents||[]).filter(a=>a.installed).length>1?`<span class="badge">${esc(s.agent||'')}</span>`:''}${s.kind?`<span class="badge">${s.kind}</span>`:''} <select class="st" title="status" style="border-left:3px solid var(${SC[s.status]})">${ST.map(k=>`<option ${k===s.status?'selected':''}>${k}</option>`).join('')}</select> ${tk.map(k=>D.jira?`<a class="badge" href="${D.jira}${k}" target="_blank" rel="noopener">${k}</a>`:`<span class="badge">${k}</span>`).join(' ')}</h3>
+  return `<div class="card" data-id="${s.id}"><h3><span class="tt" title="started: ${esc(s.first.slice(0,200))}">${nm}</span> ${s.running?'<span class="badge run">running</span>':''}${(D.agents||[]).filter(a=>a.installed).length>1?`<span class="badge">${esc(s.agent||'')}</span>`:''}${s.kind?`<span class="badge">${s.kind}</span>`:''}${s.pin?'<span class="badge">pinned</span>':''} <select class="st" title="status" style="border-left:3px solid var(${SC[s.status]})">${ST.map(k=>`<option ${k===s.status?'selected':''}>${k}</option>`).join('')}</select> ${tk.map(k=>D.jira?`<a class="badge" href="${D.jira}${k}" target="_blank" rel="noopener">${k}</a>`:`<span class="badge">${k}</span>`).join(' ')}</h3>
   <div class="mut" title="id ${s.id} · created ${fmt(s.created)} · last interacted ${fmt(s.mtime)}">${esc(short(s.cwd))} · ${(s.size/1024).toFixed(0)} KB · ${ago(s.mtime)}</div>
   ${s.note?`<div class="q">&#128221; ${esc(s.note)}</div>`:''}
   ${s.last?`<div class="q c2"><b>last ask:</b> ${link(s.last)}</div>`:''}${s.lastAssistant?`<div class="q c2"><b>${s.agent==='antigravity'?'summary':'last reply'}:</b> ${link(s.lastAssistant)}</div>`:''}
   <div class="row">${cp.chat?`<button class="vc" title="read the full conversation here">view chat</button>`:''}${cp.resume?`<button class="ot" title="open this session as a live terminal">open in terminal</button>`:''}${cp.openFolder&&!s.cwd.includes('/.gemini/')?`<button class="of" title="open this folder in the agent">open folder</button>`:''}${cp.changes?`<button class="cc" title="files, commits and PRs from this session">changes</button>`:''}
-   <span class="mw"><button class="mb" title="more actions">&#8943;</button><div class="mm" hidden><button class="rn">rename</button><button class="kd">type: ${s.kind||"none"}</button><button class="nt">edit note</button>${cp.destroy?`<button class="dx">close for good...</button>`:''}${cp.changes?`<button class="cp" data-c="cd ${esc(s.cwd)} &amp;&amp; claude --resume ${s.id}">copy resume cmd</button><button class="ho">copy handoff</button>`:''}</div></span></div>
+   <span class="mw"><button class="mb" title="more actions">&#8943;</button><div class="mm" hidden><button class="pn">${s.pin?'unpin':'pin to top'}</button><button class="rn">rename</button><button class="kd">type: ${s.kind||"none"}</button><button class="nt">edit note</button>${cp.destroy?`<button class="dx">close for good...</button>`:''}${cp.changes?`<button class="cp" data-c="cd ${esc(s.cwd)} &amp;&amp; claude --resume ${s.id}">copy resume cmd</button><button class="ho">copy handoff</button>`:''}</div></span></div>
   ${cp.changes?`<details class="dt"><summary>details</summary><div class="tabs"><button data-dt="cd" class="on">code changes</button><button data-dt="sk">skills</button></div><div class="dtb mut"></div></details>`:''}</div>`}
 function bind(){
   document.querySelectorAll('.card[data-id]').forEach(c=>{
@@ -92,6 +92,7 @@ function bind(){
     q('.nt').onclick=async()=>{const s=S(),n=prompt('Note',s.note||'');if(n===null)return;await api('/api/tag',{id,note:n.trim()});load()};
     q('.kd').onclick=async e=>{const s=S(),n=['',...KINDS][(['',...KINDS].indexOf(s.kind||'')+1)%4];await api('/api/tag',{id,kind:n});s.kind=n;e.target.textContent='type: '+(n||'none')};
     q('.dx').onclick=()=>openDestroy(S());
+    q('.pn').onclick=async()=>{const s=S();s.pin=!s.pin;await api('/api/tag',{id,pin:s.pin});lastSig=sigOf(D);draw()};
     q('.vc').onclick=()=>openChat(id);
     q('.ot').onclick=()=>openTerm(id,S().cwd,undefined,S().agent);
     q('.ho').onclick=async e=>{const t=await fetch('/api/handoff?id='+id,{headers:{'x-hub':'1'}}).then(x=>x.text());try{await navigator.clipboard.writeText(t);e.target.textContent='copied'}catch{e.target.textContent='copy failed'}};
@@ -99,7 +100,7 @@ function bind(){
     q('.mb').onclick=e=>{e.stopPropagation();const m=c.querySelector('.mm'),was=m.hidden;document.querySelectorAll('.mm').forEach(x=>x.hidden=true);m.hidden=!was};
     const dt=c.querySelector('.dt')||document.createElement('details'),box=c.querySelector('.dtb')||document.createElement('div');
     const tab=k=>{dt.querySelectorAll('[data-dt]').forEach(x=>x.classList.toggle('on',x.dataset.dt===k));const s=S();box.className='dtb';
-      if(k==='cd'){box.classList.add('mut');box.innerHTML='loading...';api('/api/changes?id='+id).then(r=>box.innerHTML=chHtml(r,''))}
+      if(k==='cd'){box.classList.add('mut');box.innerHTML='loading...';api('/api/changes?id='+id).then(r=>{box.innerHTML='<div class="prs mut">checking pull request...</div>'+chHtml(r,'');paintPr(box,s.cwd)})}
       else if(k==='sk'){box.classList.add('mut');box.innerHTML='loading...';loadSk(box,id,s.cwd)}
       else{box.innerHTML=''}};
     q('.cc').onclick=()=>{dt.open=true;tab('cd');dt.dataset.l=1;dt.scrollIntoView({block:'nearest'})};

@@ -15,6 +15,7 @@ if (require.main === module) {
   backupTags(); setInterval(backupTags, 6 * 3600e3);
   setTimeout(() => { try { const n = autoClose(); if (n) console.log('auto-closed', n, 'idle sessions'); } catch (e) { console.log('auto-close failed', e.message); } }, 60e3);
   setInterval(() => { try { autoClose(); } catch {} }, 6 * 3600e3);
+  setInterval(() => { try { const m = require('./lib/skills').readCfg().autoStopMin; if (m) require('./lib/system').autoStopIdle(m); } catch {} }, 5 * 60e3);
   server.listen(PORT, '127.0.0.1', () => { console.log(`Marram on 127.0.0.1:${PORT}.`); console.log(process.stdout.isTTY ? `Open (signs this browser in once): http://127.0.0.1:${PORT}/?k=${TOKEN}` : 'First time in a browser: run  node server.js --url  and open the link.'); });
 }
 module.exports = { server, okCwd, parseSession, transcript, textOf, repoOf };
