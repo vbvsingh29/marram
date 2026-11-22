@@ -139,7 +139,7 @@ test('optimize: token counts per transcript, duplicate message ids counted once'
   const { fileTokens } = require('../lib/optimize'), f = path.join(pdir, 'cccccccc-1111-2222-3333-444444444444.jsonl');
   const a = { type: 'assistant', requestId: 'r1', message: { id: 'm1', role: 'assistant', content: [], usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 100, cache_creation_input_tokens: 20 } } };
   fs.writeFileSync(f, [a, a, { ...a, requestId: 'r2', message: { ...a.message, id: 'm2' } }].map(x => JSON.stringify(x)).join('\n') + '\n');
-  assert.deepStrictEqual(fileTokens(f), { in: 20, out: 10, cr: 200, cc: 40, turns: 2 });
+  assert.deepStrictEqual(fileTokens(f), { in: 20, out: 10, cr: 200, cc: 40, turns: 2, m: { other: { in: 20, out: 10, cr: 200, cc: 40 } } });
 });
 
 test('UI assets are served only from /web with a safe name, and the page has no inline script', async () => {
@@ -154,4 +154,43 @@ test('UI assets are served only from /web with a safe name, and the page has no 
     assert.strictEqual((await req(port, 'GET', '/web/app.js', { host: '127.0.0.1:' + port })).status, 401, 'needs sign-in');
     const page = await req(port, 'GET', '/', H); assert.ok(!/<script>[^<]/.test(page.body) && !page.headers['content-security-policy'].includes("script-src 'self' 'unsafe-inline'"));
   } finally { hub.server.close(); }
+});
+
+test('watch: finds secret kinds without keeping values, ignores placeholders, reads context size', () => {
+  const w = require('../lib/watch'), tok = 'github_pat_' + 'B'.repeat(40);
+  const r = w.secretsIn('pasted ' + tok + ' and postgres://app:Zq8vK2mPlt@db.internal/x and postgres://user:password@localhost/x and AKIA' + 'A'.repeat(16));
+  assert.deepStrictEqual(r, { 'GitHub token': 1, 'AWS access key': 1, 'Database URL with password': 1 });
+  assert.ok(!JSON.stringify(r).includes('BBBB'));
+  const line = JSON.stringify({ message: { model: 'claude-opus-x', usage: { input_tokens: 5, cache_read_input_tokens: 100, cache_creation_input_tokens: 3 } } });
+  const t = w.scanText('{"isCompactSummary":true}\n' + line + '\n'); assert.strictEqual(t.ctx, 108); assert.strictEqual(t.compacts, 1);
+});
+
+test('notes: per-project decisions are stored privately and reach the claude new-session command', () => {
+  const n = require('../lib/notes'), cl = require('../lib/agents/claude');
+  assert.deepStrictEqual(cl.newCmd(work, ID), ['claude', '--session-id', ID]);
+  n.setNote(work, 'use the repo helper, not raw SQL');
+  const c = cl.newCmd(work, ID); assert.strictEqual(c[3], '--append-system-prompt'); assert.ok(c[4].includes('repo helper'));
+  assert.strictEqual(fs.statSync(path.join(home, '.claude', 'hub-notes.json')).mode & 0o777, 0o600);
+  n.setNote(work, ''); assert.strictEqual(n.getNote(work), '');
+});
+
+test('perms: only simple read-only commands are suggested, compound ones are skipped', () => {
+  const p = require('../lib/perms');
+  assert.ok(p.SAFE.test('git status -s') && p.SAFE.test('npm test') && !p.SAFE.test('rm -rf x') && !p.SAFE.test('curl http://x'));
+  assert.strictEqual(p.head('git diff --stat'), 'git diff'); assert.strictEqual(p.head('ls -la'), 'ls');
+});
+
+test('cost: uses only prices the user entered', () => {
+  const o = require('../lib/optimize');
+  assert.strictEqual(o.costOf({ opus: { in: 1e6, out: 1e6, cr: 0, cc: 0 } }, {}), 0);
+  assert.strictEqual(o.costOf({ opus: { in: 1e6, out: 2e6, cr: 0, cc: 0 } }, { opus: { in: 3, out: 10, cr: 0, cc: 0 } }), 23);
+});
+
+test('wtNew: creates a worktree from the fetched base and rejects bad names', () => {
+  const { execFileSync: x } = require('child_process'), wt = require('../lib/worktrees'), o = path.join(home, 'origin.git'), r = path.join(home, 'projects', 'wtrepo');
+  x('git', ['init', '-q', '--bare', '-b', 'dev', o]); x('git', ['init', '-q', '-b', 'dev', r]);
+  x('git', ['-C', r, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '--allow-empty', '-m', 'init']); x('git', ['-C', r, 'remote', 'add', 'origin', o]); x('git', ['-C', r, 'push', '-q', 'origin', 'dev']);
+  const d = wt.wtNew(r, 'BJS-1-task-demo', 'dev'); assert.ok(fs.existsSync(path.join(d.dir, '.git'))); assert.ok(d.dir.endsWith('wtrepo-BJS-1-task-demo'));
+  assert.throws(() => wt.wtNew(r, 'bad name', 'dev')); assert.throws(() => wt.wtNew(r, 'x;rm', 'dev')); assert.throws(() => wt.wtNew(r, 'BJS-1-task-demo', 'dev'), /exists/);
+  assert.strictEqual(wt.defaultBase(r), 'dev');
 });
