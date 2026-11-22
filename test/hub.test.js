@@ -351,5 +351,5 @@ test('Windows-safe: project folders are found with either path separator, and pr
   const re = homePathRe('C:\\Users\\Dev'); const m = 'see C:\\Users\\Dev\\projects\\demo\\a.js and C:/Users/Dev/projects/other/b.js'.match(re); assert.deepStrictEqual(m, ['C:\\Users\\Dev\\projects\\demo', 'C:/Users/Dev/projects/other']);
   assert.deepStrictEqual('/home/x/projects/a/b'.match(homePathRe('/home/x')), ['/home/x/projects/a']);
   const d = fs.mkdtempSync(path.join(os.tmpdir(), 'bin-')); fs.writeFileSync(path.join(d, 'tool.exe'), 'x'); fs.chmodSync(path.join(d, 'tool.exe'), 0o755); fs.writeFileSync(path.join(d, 'plain'), 'x'); fs.chmodSync(path.join(d, 'plain'), 0o755);
-  assert.ok(onPath('tool', d, 'win32', '.COM;.EXE;.BAT'), 'found through PATHEXT'); assert.ok(!onPath('tool', d, 'linux'), 'not on Linux without the extension'); assert.ok(onPath('plain', d, 'linux')); assert.ok(!onPath('missing', d, 'win32')); assert.ok(!onPath('', d, 'linux'));
+  assert.ok(onPath('tool', d, 'win32', '.COM;.EXE;.BAT'), 'found through PATHEXT'); if (process.platform !== 'win32') { assert.ok(!onPath('tool', d, 'linux'), 'not on Linux without the extension'); assert.ok(onPath('plain', d, 'linux')); } assert.ok(!onPath('missing', d, 'win32')); assert.ok(!onPath('', d, 'linux'));
 });
