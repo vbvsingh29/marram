@@ -345,3 +345,11 @@ test('webhook safety: private, loopback, CGNAT, link-local and mapped addresses 
   assert.strictEqual((await i.resolveSafe('1.1.1.1')).address, '1.1.1.1');
   process.env.MARRAM_ALLOW_LOCAL_HOOKS = '1'; assert.strictEqual((await i.resolveSafe('127.0.0.1')).address, '127.0.0.1'); delete process.env.MARRAM_ALLOW_LOCAL_HOOKS;
 });
+
+test('Windows-safe: project folders are found with either path separator, and programs are found through PATHEXT', () => {
+  const { homePathRe } = require('../lib/agents/antigravity'), { onPath } = require('../lib/agents/custom');
+  const re = homePathRe('C:\\Users\\Dev'); const m = 'see C:\\Users\\Dev\\projects\\demo\\a.js and C:/Users/Dev/projects/other/b.js'.match(re); assert.deepStrictEqual(m, ['C:\\Users\\Dev\\projects\\demo', 'C:/Users/Dev/projects/other']);
+  assert.deepStrictEqual('/home/x/projects/a/b'.match(homePathRe('/home/x')), ['/home/x/projects/a']);
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'bin-')); fs.writeFileSync(path.join(d, 'tool.exe'), 'x'); fs.chmodSync(path.join(d, 'tool.exe'), 0o755); fs.writeFileSync(path.join(d, 'plain'), 'x'); fs.chmodSync(path.join(d, 'plain'), 0o755);
+  assert.ok(onPath('tool', d, 'win32', '.COM;.EXE;.BAT'), 'found through PATHEXT'); assert.ok(!onPath('tool', d, 'linux'), 'not on Linux without the extension'); assert.ok(onPath('plain', d, 'linux')); assert.ok(!onPath('missing', d, 'win32')); assert.ok(!onPath('', d, 'linux'));
+});
