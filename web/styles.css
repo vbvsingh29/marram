@@ -117,3 +117,6 @@ a{text-underline-offset:2px}
 }
 
 .badge.warn{background:color-mix(in srgb,var(--ac2) 20%,var(--hov));color:var(--ac2);font-weight:600}
+
+.modal{position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:16px}.modal[hidden]{display:none}
+button.danger{background:var(--err);color:#fff;border-color:var(--err)}button.danger:hover{background:var(--err);filter:brightness(1.1)}

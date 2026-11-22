@@ -66,6 +66,8 @@ test('HTTP guards: sign-in, header, host and input validation', async () => {
     assert.strictEqual((await req(port, 'GET', '/api/sessions', { ...H, host: 'evil.example' })).status, 403, 'bad Host');
     assert.strictEqual((await req(port, 'POST', '/api/tag', { 'content-type': 'application/json', 'x-hub': '1' }, '{}')).status, 401, 'POST without cookie');
     assert.strictEqual((await req(port, 'POST', '/api/send-stream', H, '{}')).status, 404, 'headless send was removed');
+    assert.match((await req(port, 'POST', '/api/session-destroy', H, JSON.stringify({ id: ID, confirm: 'delete' }))).body, /type DELETE/);
+    assert.ok(fs.existsSync(path.join(pdir, ID + '.jsonl')), 'wrong confirmation deletes nothing');
   } finally { hub.server.close(); }
 });
 
@@ -194,4 +196,15 @@ test('wtNew: creates a worktree from the fetched base and rejects bad names', ()
   const d = wt.wtNew(r, 'BJS-1-task-demo', 'dev'); assert.ok(fs.existsSync(path.join(d.dir, '.git'))); assert.ok(d.dir.endsWith('wtrepo-BJS-1-task-demo'));
   assert.throws(() => wt.wtNew(r, 'bad name', 'dev')); assert.throws(() => wt.wtNew(r, 'x;rm', 'dev')); assert.throws(() => wt.wtNew(r, 'BJS-1-task-demo', 'dev'), /exists/);
   assert.strictEqual(wt.defaultBase(r), 'dev');
+});
+
+test('destroySession: removes transcript and leftovers for that id only, and clears tags', () => {
+  const S = require('../lib/sessions'), id = 'dddddddd-1111-2222-3333-444444444444', other = 'eeeeeeee-1111-2222-3333-444444444444';
+  const f = path.join(pdir, id + '.jsonl'), o = path.join(pdir, other + '.jsonl'), sub = path.join(pdir, id), fh = path.join(home, '.claude', 'file-history', id);
+  fs.writeFileSync(f, '{"type":"user","cwd":"' + work + '","message":{"role":"user","content":"x"}}\n'); fs.writeFileSync(o, fs.readFileSync(f)); fs.mkdirSync(sub, { recursive: true }); fs.writeFileSync(path.join(sub, 'a.txt'), 'x'); fs.mkdirSync(fh, { recursive: true });
+  const tf = path.join(home, '.claude', 'session-tags.json'); fs.writeFileSync(tf, JSON.stringify({ [id]: { note: 'n' }, [other]: { note: 'keep' } }));
+  const r = S.destroySession(id); assert.strictEqual(r.killed, 0);
+  assert.ok(!fs.existsSync(f) && !fs.existsSync(sub) && !fs.existsSync(fh)); assert.ok(fs.existsSync(o), 'other session untouched');
+  assert.deepStrictEqual(Object.keys(JSON.parse(fs.readFileSync(tf, 'utf8'))), [other]);
+  assert.throws(() => S.destroySession(id), /not found/); assert.throws(() => S.destroySession('../../etc'), /bad session id/);
 });

@@ -81,7 +81,7 @@ function card(s){
   ${s.note?`<div class="q">&#128221; ${esc(s.note)}</div>`:''}
   ${s.last?`<div class="q c2"><b>last ask:</b> ${link(s.last)}</div>`:''}${s.lastAssistant?`<div class="q c2"><b>${s.agent==='antigravity'?'summary':'last reply'}:</b> ${link(s.lastAssistant)}</div>`:''}
   <div class="row">${cp.chat?`<button class="vc" title="read the full conversation here">view chat</button>`:''}${cp.resume?`<button class="ot" title="open this session as a live terminal">open in terminal</button>`:''}${cp.openFolder&&!s.cwd.includes('/.gemini/')?`<button class="of" title="open this folder in the agent">open folder</button>`:''}${cp.changes?`<button class="cc" title="files, commits and PRs from this session">changes</button>`:''}
-   <span class="mw"><button class="mb" title="more actions">&#8943;</button><div class="mm" hidden><button class="rn">rename</button><button class="kd">type: ${s.kind||"none"}</button><button class="nt">edit note</button>${cp.changes?`<button class="cp" data-c="cd ${esc(s.cwd)} &amp;&amp; claude --resume ${s.id}">copy resume cmd</button><button class="ho">copy handoff</button>`:''}</div></span></div>
+   <span class="mw"><button class="mb" title="more actions">&#8943;</button><div class="mm" hidden><button class="rn">rename</button><button class="kd">type: ${s.kind||"none"}</button><button class="nt">edit note</button>${cp.destroy?`<button class="dx">close for good...</button>`:''}${cp.changes?`<button class="cp" data-c="cd ${esc(s.cwd)} &amp;&amp; claude --resume ${s.id}">copy resume cmd</button><button class="ho">copy handoff</button>`:''}</div></span></div>
   ${cp.changes?`<details class="dt"><summary>details</summary><div class="tabs"><button data-dt="cd" class="on">code changes</button><button data-dt="sk">skills</button></div><div class="dtb mut"></div></details>`:''}</div>`}
 function bind(){
   document.querySelectorAll('.card[data-id]').forEach(c=>{
@@ -91,6 +91,7 @@ function bind(){
     q('.rn').onclick=async()=>{const s=S(),n=prompt('Rename session (empty = reset)',s.name||s.title||'');if(n===null)return;await api('/api/tag',{id,name:n.trim()});s.name=n.trim();c.querySelector('.tt').textContent=s.name||s.title||s.first.slice(0,80)||id};
     q('.nt').onclick=async()=>{const s=S(),n=prompt('Note',s.note||'');if(n===null)return;await api('/api/tag',{id,note:n.trim()});load()};
     q('.kd').onclick=async e=>{const s=S(),n=['',...KINDS][(['',...KINDS].indexOf(s.kind||'')+1)%4];await api('/api/tag',{id,kind:n});s.kind=n;e.target.textContent='type: '+(n||'none')};
+    q('.dx').onclick=()=>openDestroy(S());
     q('.vc').onclick=()=>openChat(id);
     q('.ot').onclick=()=>openTerm(id,S().cwd,undefined,S().agent);
     q('.ho').onclick=async e=>{const t=await fetch('/api/handoff?id='+id,{headers:{'x-hub':'1'}}).then(x=>x.text());try{await navigator.clipboard.writeText(t);e.target.textContent='copied'}catch{e.target.textContent='copy failed'}};
