@@ -110,3 +110,27 @@ test('agent registry: claude adapter lists sessions tagged with agent and builds
   const l = cl.list(); assert.ok(l.sessions.length && l.sessions.every(s => s.agent === 'claude'));
   assert.strictEqual(reg.sessions('nope').sessions.length, 0);
 });
+
+test('antigravity adapter: lists conversations from brain notes, read-only', () => {
+  const ag = require('../lib/agents/antigravity'), id = 'aaaaaaaa-1111-2222-3333-444444444444';
+  const root = path.join(home, '.gemini', 'antigravity'); fs.mkdirSync(path.join(root, 'conversations'), { recursive: true }); fs.mkdirSync(path.join(root, 'brain', id), { recursive: true });
+  fs.writeFileSync(path.join(root, 'conversations', id + '.pb'), Buffer.from([0, 1, 2]));
+  fs.writeFileSync(path.join(root, 'brain', id, 'implementation_plan.md'), '# Speed up the report\n\nsee ' + work + '/a.js\n');
+  fs.writeFileSync(path.join(root, 'brain', id, 'implementation_plan.md.metadata.json'), JSON.stringify({ summary: 'Add an index' }));
+  const s = ag.list().sessions.find(x => x.id === id);
+  assert.strictEqual(s.agent, 'antigravity'); assert.strictEqual(s.title, 'Speed up the report'); assert.strictEqual(s.cwd, work); assert.strictEqual(s.first, 'Add an index');
+  assert.ok(ag.installed()); assert.ok(!ag.capabilities.chat && !ag.capabilities.resume && ag.capabilities.openFolder);
+});
+
+test('codex adapter (experimental): lists, reads transcript, builds resume command', () => {
+  const cx = require('../lib/agents/codex'), id = 'bbbbbbbb-1111-2222-3333-444444444444', d = path.join(home, '.codex', 'sessions', '2026', '11', '22'); fs.mkdirSync(d, { recursive: true });
+  const L = [{ timestamp: '2026-11-22T10:00:00Z', type: 'session_meta', payload: { id, cwd: work } },
+    { timestamp: '2026-11-22T10:00:01Z', type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: '<environment_context>x</environment_context>' }] } },
+    { timestamp: '2026-11-22T10:00:02Z', type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'rename the helper' }] } },
+    { timestamp: '2026-11-22T10:00:03Z', type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'Done.' }] } }];
+  fs.writeFileSync(path.join(d, 'rollout-2026-11-22T10-00-00-' + id + '.jsonl'), L.map(x => JSON.stringify(x)).join('\n') + '\n');
+  const s = cx.list().sessions.find(x => x.id === id);
+  assert.strictEqual(s.agent, 'codex'); assert.strictEqual(s.cwd, work); assert.strictEqual(s.first, 'rename the helper'); assert.strictEqual(s.lastAssistant, 'Done.');
+  const t = cx.transcript(id, 0, 50); assert.deepStrictEqual(t.msgs.map(m => m.r), ['u', 'a']);
+  assert.deepStrictEqual(cx.resumeCmd({ id }), ['codex', 'resume', id]); assert.ok(cx.experimental); assert.ok(cx.installed());
+});

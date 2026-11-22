@@ -93,6 +93,7 @@ const api=(p,b)=>fetch(p,b?{method:'POST',headers:{'content-type':'application/j
 const ago=t=>{const s=(Date.now()-t)/1000;return s<60?'now':s<3600?Math.floor(s/60)+'m ago':s<86400?Math.floor(s/3600)+'h ago':Math.floor(s/86400)+'d ago'};
 const fmt=t=>t?new Date(t).toLocaleString([],{dateStyle:'medium',timeStyle:'short'}):'?';
 const link=s=>esc(s).replace(/(https?:\/\/[^\s<)]+)/g,'<a href="$1" target="_blank" rel="noopener">$1</a>').replace(TRE?new RegExp(TRE.source,'g'):/$^/,(m,o,str)=>!D.jira||str.slice(Math.max(0,o-2),o)==='">'||str.slice(o-1,o)==='/'?m:`<a href="${D.jira}${m}" target="_blank" rel="noopener">${m}</a>`);
+const capsOf=s=>((D.agents||[]).find(a=>a.id===(s.agent||'claude'))||{}).capabilities||{};
 const tickets=s=>TRE?[...new Set(((s.name||'')+' '+s.title+' '+s.first+' '+s.last+' '+s.cwd).match(TRE)||[])]:[];
 const short=c=>c.replace(/^\/home\/[^/]+\//,'~/');
 // Only changes you would want to see count; a session merely being active (new messages) does not.
@@ -101,7 +102,7 @@ let lastSig='';
 const sigOf=d=>d.sessions.map(s=>s.id+':'+rowSig(s)).join('|');
 function showUpd(n){let b=$('#upd');if(!b){b=document.createElement('button');b.id='upd';b.className='primary';b.onclick=()=>{b.hidden=true;draw()};document.body.appendChild(b)}b.textContent=n+' session'+(n==1?'':'s')+' updated - click to refresh the list';b.hidden=false}
 const sessUrl=()=>'/api/sessions'+(agent!=='all'?'?agent='+agent:'');
-function drawAgents(){const A=D.agents||[],el=$('#agsel');el.innerHTML='<option value="all">All agents</option>'+A.map(a=>`<option value="${a.id}" ${a.installed?'':'disabled'}>${esc(a.label)}${a.installed?'':' (not installed)'}</option>`).join('');el.value=agent;el.onchange=()=>{agent=el.value;syncHash();load()}}
+function drawAgents(){const A=D.agents||[],el=$('#agsel');el.innerHTML='<option value="all">All agents</option>'+A.map(a=>`<option value="${a.id}" ${a.installed?'':'disabled'}>${esc(a.label)}${a.experimental?' (experimental)':''}${a.installed?'':' (not installed)'}</option>`).join('');el.value=agent;el.onchange=()=>{agent=el.value;syncHash();load()}}
 async function load(){D=await api(sessUrl());drawAgents();TK=D.tickets||[];TRE=TK.length?new RegExp('\\b(?:'+TK.join('|')+')-\\d+\\b','g'):null;lastSig=sigOf(D);const b=$('#upd');if(b)b.hidden=true;draw()}
 // Background refresh never redraws the page under you: it only fetches, and offers a refresh button if something changed.
 async function poll(){
@@ -158,32 +159,33 @@ function stats(S){
   document.querySelectorAll('#stats [data-t]').forEach(e=>tipOn(e,e.dataset.t));
 }
 function card(s){
-  const nm=esc(s.name||s.title||s.first.slice(0,80)||s.id),tk=tickets(s);
+  const cp=capsOf(s),nm=esc(s.name||s.title||s.first.slice(0,80)||s.id),tk=tickets(s);
   return `<div class="card" data-id="${s.id}"><h3><span class="tt" title="started: ${esc(s.first.slice(0,200))}">${nm}</span> ${s.running?'<span class="badge run">running</span>':''}${(D.agents||[]).filter(a=>a.installed).length>1?`<span class="badge">${esc(s.agent||'')}</span>`:''}${s.kind?`<span class="badge">${s.kind}</span>`:''} <select class="st" title="status" style="border-left:3px solid var(${SC[s.status]})">${ST.map(k=>`<option ${k===s.status?'selected':''}>${k}</option>`).join('')}</select> ${tk.map(k=>D.jira?`<a class="badge" href="${D.jira}${k}" target="_blank" rel="noopener">${k}</a>`:`<span class="badge">${k}</span>`).join(' ')}</h3>
   <div class="mut" title="id ${s.id} · created ${fmt(s.created)} · last interacted ${fmt(s.mtime)}">${esc(short(s.cwd))} · ${(s.size/1024).toFixed(0)} KB · ${ago(s.mtime)}</div>
   ${s.note?`<div class="q">&#128221; ${esc(s.note)}</div>`:''}
-  <div class="q c2"><b>last ask:</b> ${link(s.last)}</div><div class="q c2"><b>last reply:</b> ${link(s.lastAssistant)}</div>
-  <div class="row"><button class="vc" title="read the full conversation here">view chat</button><button class="ot" title="open this session as a live terminal">open in terminal</button><button class="cc" title="files, commits and PRs from this session">changes</button>
-   <span class="mw"><button class="mb" title="more actions">&#8943;</button><div class="mm" hidden><button class="rn">rename</button><button class="kd">type: ${s.kind||"none"}</button><button class="nt">edit note</button><button class="cp" data-c="cd ${esc(s.cwd)} &amp;&amp; claude --resume ${s.id}">copy resume cmd</button><button class="ho">copy handoff</button></div></span></div>
-  <details class="dt"><summary>details</summary><div class="tabs"><button data-dt="cd" class="on">code changes</button><button data-dt="sk">skills</button></div><div class="dtb mut"></div></details></div>`}
+  ${s.last?`<div class="q c2"><b>last ask:</b> ${link(s.last)}</div>`:''}${s.lastAssistant?`<div class="q c2"><b>${s.agent==='antigravity'?'summary':'last reply'}:</b> ${link(s.lastAssistant)}</div>`:''}
+  <div class="row">${cp.chat?`<button class="vc" title="read the full conversation here">view chat</button>`:''}${cp.resume?`<button class="ot" title="open this session as a live terminal">open in terminal</button>`:''}${cp.openFolder&&!s.cwd.includes('/.gemini/')?`<button class="of" title="open this folder in the agent">open folder</button>`:''}${cp.changes?`<button class="cc" title="files, commits and PRs from this session">changes</button>`:''}
+   <span class="mw"><button class="mb" title="more actions">&#8943;</button><div class="mm" hidden><button class="rn">rename</button><button class="kd">type: ${s.kind||"none"}</button><button class="nt">edit note</button>${cp.changes?`<button class="cp" data-c="cd ${esc(s.cwd)} &amp;&amp; claude --resume ${s.id}">copy resume cmd</button><button class="ho">copy handoff</button>`:''}</div></span></div>
+  ${cp.changes?`<details class="dt"><summary>details</summary><div class="tabs"><button data-dt="cd" class="on">code changes</button><button data-dt="sk">skills</button></div><div class="dtb mut"></div></details>`:''}</div>`}
 function bind(){
   document.querySelectorAll('.card[data-id]').forEach(c=>{
-    const id=c.dataset.id,S=()=>D.sessions.find(x=>x.id===id);
-    c.querySelector('.st').onchange=async e=>{const v=e.target.value;await api('/api/tag',{id,status:v});const s=S();if(s)s.status=v;e.target.style.borderLeft='3px solid var('+SC[v]+')'};
-    c.querySelector('.rn').onclick=async()=>{const s=S(),n=prompt('Rename session (empty = reset)',s.name||s.title||'');if(n===null)return;await api('/api/tag',{id,name:n.trim()});s.name=n.trim();c.querySelector('.tt').textContent=s.name||s.title||s.first.slice(0,80)||id};
-    c.querySelector('.nt').onclick=async()=>{const s=S(),n=prompt('Note',s.note||'');if(n===null)return;await api('/api/tag',{id,note:n.trim()});load()};
-    c.querySelector('.kd').onclick=async e=>{const s=S(),n=['',...KINDS][(['',...KINDS].indexOf(s.kind||'')+1)%4];await api('/api/tag',{id,kind:n});s.kind=n;e.target.textContent='type: '+(n||'none')};
-    c.querySelector('.vc').onclick=()=>openChat(id);
-    c.querySelector('.ot').onclick=()=>openTerm(id,S().cwd,undefined,S().agent);
-    c.querySelector('.ho').onclick=async e=>{const t=await fetch('/api/handoff?id='+id,{headers:{'x-hub':'1'}}).then(x=>x.text());try{await navigator.clipboard.writeText(t);e.target.textContent='copied'}catch{e.target.textContent='copy failed'}};
-    c.querySelector('.cp').onclick=e=>{navigator.clipboard.writeText(e.target.dataset.c.replace(/&amp;/g,'&'));e.target.textContent='copied'};
-    c.querySelector('.mb').onclick=e=>{e.stopPropagation();const m=c.querySelector('.mm'),was=m.hidden;document.querySelectorAll('.mm').forEach(x=>x.hidden=true);m.hidden=!was};
-    const dt=c.querySelector('.dt'),box=c.querySelector('.dtb');
+    const id=c.dataset.id,S=()=>D.sessions.find(x=>x.id===id),q=sel=>c.querySelector(sel)||{};
+    q('.of').onclick=async e=>{const s=S(),r=await api('/api/open-folder',{agent:s.agent,cwd:s.cwd});e.target.textContent=r.error?'failed':'opened'};
+    q('.st').onchange=async e=>{const v=e.target.value;await api('/api/tag',{id,status:v});const s=S();if(s)s.status=v;e.target.style.borderLeft='3px solid var('+SC[v]+')'};
+    q('.rn').onclick=async()=>{const s=S(),n=prompt('Rename session (empty = reset)',s.name||s.title||'');if(n===null)return;await api('/api/tag',{id,name:n.trim()});s.name=n.trim();c.querySelector('.tt').textContent=s.name||s.title||s.first.slice(0,80)||id};
+    q('.nt').onclick=async()=>{const s=S(),n=prompt('Note',s.note||'');if(n===null)return;await api('/api/tag',{id,note:n.trim()});load()};
+    q('.kd').onclick=async e=>{const s=S(),n=['',...KINDS][(['',...KINDS].indexOf(s.kind||'')+1)%4];await api('/api/tag',{id,kind:n});s.kind=n;e.target.textContent='type: '+(n||'none')};
+    q('.vc').onclick=()=>openChat(id);
+    q('.ot').onclick=()=>openTerm(id,S().cwd,undefined,S().agent);
+    q('.ho').onclick=async e=>{const t=await fetch('/api/handoff?id='+id,{headers:{'x-hub':'1'}}).then(x=>x.text());try{await navigator.clipboard.writeText(t);e.target.textContent='copied'}catch{e.target.textContent='copy failed'}};
+    q('.cp').onclick=e=>{navigator.clipboard.writeText(e.target.dataset.c.replace(/&amp;/g,'&'));e.target.textContent='copied'};
+    q('.mb').onclick=e=>{e.stopPropagation();const m=c.querySelector('.mm'),was=m.hidden;document.querySelectorAll('.mm').forEach(x=>x.hidden=true);m.hidden=!was};
+    const dt=c.querySelector('.dt')||document.createElement('details'),box=c.querySelector('.dtb')||document.createElement('div');
     const tab=k=>{dt.querySelectorAll('[data-dt]').forEach(x=>x.classList.toggle('on',x.dataset.dt===k));const s=S();box.className='dtb';
       if(k==='cd'){box.classList.add('mut');box.innerHTML='loading...';api('/api/changes?id='+id).then(r=>box.innerHTML=chHtml(r,''))}
       else if(k==='sk'){box.classList.add('mut');box.innerHTML='loading...';loadSk(box,id,s.cwd)}
       else{box.innerHTML=''}};
-    c.querySelector('.cc').onclick=()=>{dt.open=true;tab('cd');dt.dataset.l=1;dt.scrollIntoView({block:'nearest'})};
+    q('.cc').onclick=()=>{dt.open=true;tab('cd');dt.dataset.l=1;dt.scrollIntoView({block:'nearest'})};
     dt.addEventListener('toggle',()=>{if(dt.open&&!dt.dataset.l){dt.dataset.l=1;tab('cd')}});
     dt.querySelectorAll('[data-dt]').forEach(x=>x.onclick=()=>tab(x.dataset.dt));
   });
@@ -232,7 +234,7 @@ function setTab(t,nopush){tab=t;$('#tabs').innerHTML=TABS.map(x=>`<button data-t
 
 
 
-const acts=id=>`<span class="acts"><a href="#" data-vc="${id}">view chat</a> <a href="#" data-ot="${id}">open in terminal</a></span>`;
+const acts=id=>{const s=D.sessions.find(x=>x.id===id),c=s?capsOf(s):{chat:1,resume:1};return `<span class="acts">${c.chat?`<a href="#" data-vc="${id}">view chat</a> `:''}${c.resume?`<a href="#" data-ot="${id}">open in terminal</a>`:''}</span>`};
 document.addEventListener('click',e=>{const a=e.target.closest('[data-vc],[data-ot]');if(!a)return;e.preventDefault();e.stopPropagation();
   const id=a.dataset.vc||a.dataset.ot,s=D.sessions.find(x=>x.id===id);if(!s)return;a.dataset.vc?openChat(id):openTerm(id,s.cwd,undefined,s.agent)},true);
 
@@ -264,11 +266,11 @@ async function openChat(id,fromRoute){
   ov.innerHTML=`<div class="chd"><div><b>${esc(s.name||s.title||s.first.slice(0,80)||id)}</b><div class="mut">${esc(short(s.cwd))} · ${id.slice(0,8)}</div></div><div class="row" style="margin:0"><label class="mut"><input type="checkbox" id="cvt" checked> tool calls</label><button id="cvo" class="primary">resume in terminal</button><button id="cvx">close</button></div></div><div class="cbody" id="cvb"><p class="mut">loading...</p></div>`;
   ov.hidden=false;$('#cvx').onclick=closeChat;$('#cvo').onclick=()=>{ov.hidden=true;chatId='';openTerm(id,s.cwd)};
   const tg=()=>$('#cvb').classList.toggle('notools',!$('#cvt').checked);$('#cvt').onchange=tg;
-  const r=await api('/api/transcript?id='+id);const b=$('#cvb');
+  const r=await api('/api/transcript?id='+id+'&agent='+((D.sessions.find(x=>x.id===id)||{}).agent||'claude'));const b=$('#cvb');
   if(r.error){b.innerHTML='<p class="mut">'+esc(r.error)+'</p>';return}
   let start=r.start;b.innerHTML=(start>0?`<button id="cvm">load ${start} earlier messages</button>`:'')+'<div id="cvl">'+r.msgs.map(chatMsg).join('')+'</div>';
   b.scrollTop=b.scrollHeight;
-  const more=$('#cvm');if(more)more.onclick=async()=>{const q=await api('/api/transcript?id='+id+'&before='+start);const h=b.scrollHeight;$('#cvl').insertAdjacentHTML('afterbegin',q.msgs.map(chatMsg).join(''));start=q.start;if(start>0)more.textContent='load '+start+' earlier messages';else more.remove();b.scrollTop=b.scrollHeight-h}
+  const more=$('#cvm');if(more)more.onclick=async()=>{const q=await api('/api/transcript?id='+id+'&agent='+((D.sessions.find(x=>x.id===id)||{}).agent||'claude')+'&before='+start);const h=b.scrollHeight;$('#cvl').insertAdjacentHTML('afterbegin',q.msgs.map(chatMsg).join(''));start=q.start;if(start>0)more.textContent='load '+start+' earlier messages';else more.remove();b.scrollTop=b.scrollHeight-h}
 }
 document.addEventListener('click',()=>document.querySelectorAll('.mm').forEach(x=>x.hidden=true));
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('#chatv')&&!$('#chatv').hidden)closeChat()});
