@@ -115,3 +115,5 @@ a{text-underline-offset:2px}
   .card{padding:12px}.grid{grid-template-columns:1fr}
   .npb{max-height:96vh}
 }
+
+.badge.warn{background:color-mix(in srgb,var(--ac2) 20%,var(--hov));color:var(--ac2);font-weight:600}

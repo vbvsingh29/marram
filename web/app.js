@@ -23,6 +23,7 @@ async function load(){D=await api(sessUrl());drawAgents();TK=D.tickets||[];TRE=T
 async function poll(){
   if(document.hidden)return;
   const d=await api(sessUrl()).catch(()=>null);if(!d||!d.sessions)return;
+  notifyDone(D,d);
   const sg=sigOf(d);if(sg===lastSig){D=d;return}
   const old=new Map(D.sessions.map(s=>[s.id,rowSig(s)]));let n=0;for(const s of d.sessions)if(old.get(s.id)!==rowSig(s))n++;
   const added=d.sessions.filter(s=>!old.has(s.id)).length;D=d;lastSig=sg;if(n||added)showUpd(n)}
@@ -141,11 +142,12 @@ async function loadRules(){
 
 const inProj=s=>proj==='ALL'||(pg?(s.repo||s.cwd)===proj:s.cwd===proj);
 const mb=b=>(b/1048576).toFixed(0)+' MB';
-const TABS=[['sessions','Sessions','sess'],['term','Terminal','trm'],['work','Work items','tkt'],['wt','Worktrees','wtp'],['search','Search','srp'],['lib','Library','lib'],['skills','Skills','skl'],['hyped','Hyped','hyp'],['opt','Optimize','opt']];
+const TABS=[['sessions','Sessions','sess'],['term','Terminal','trm'],['watch','Watch','wch'],['work','Work items','tkt'],['wt','Worktrees','wtp'],['search','Search','srp'],['lib','Library','lib'],['skills','Skills','skl'],['hyped','Hyped','hyp'],['opt','Optimize','opt']];
 function setTab(t,nopush){tab=t;$('#tabs').innerHTML=TABS.map(x=>`<button data-t="${x[0]}" class="${t===x[0]?'on':''}">${x[1]}</button>`).join('')+'<button id="plus" class="primary" style="margin-left:auto" title="start a new session in a folder">+ New session</button>';
+  typeof updTitle==='function'&&updTitle();
   $('#plus').onclick=()=>openNew();document.querySelectorAll('#tabs [data-t]').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
   TABS.forEach(x=>$('#'+x[2]).hidden=x[0]!==t);
-  ({term:()=>drawTerm(),work:drawTickets,wt:drawWt,search:()=>drawSearch(),skills:drawSkills,hyped:()=>drawHype(),opt:drawOpt,lib:drawLib})[t]?.();if(!nopush)syncHash()}
+  ({watch:()=>drawWatch(),term:()=>drawTerm(),work:drawTickets,wt:drawWt,search:()=>drawSearch(),skills:drawSkills,hyped:()=>drawHype(),opt:drawOpt,lib:drawLib})[t]?.();if(!nopush)syncHash()}
 
 
 

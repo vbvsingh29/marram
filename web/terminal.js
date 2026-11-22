@@ -63,9 +63,12 @@ async function openNew(dir){
   <div class="q">${crumbs}</div>
   <div class="npl">${r.parent?`<div class="proj" data-d="${esc(r.parent)}"><span>.. (up)</span></div>`:''}${r.dirs.map(d=>`<div class="proj" data-d="${esc(r.dir+'/'+d.name)}"><span>${esc(d.name)}</span><span>${d.git?'<span class="badge">git</span> ':''}${d.claudemd?'<span class="badge">rules</span> ':''}${d.sessions?`<span class="badge">${d.sessions}</span>`:''}</span></div>`).join('')||'<p class="mut">no subfolders</p>'}</div>
   <div class="row"><input id="mk" placeholder="new folder name" style="width:200px"><button id="mkb">Create here</button><span class="mut" id="mkm"></span></div>
-  <div class="row" style="justify-content:space-between"><span class="mut">${esc(short(r.dir))} ${r.git?'· git':''} · ${r.sessions} sessions</span><button id="tnew" class="primary" ${cur?'':'disabled'}>Open terminal here</button></div></div>`;
+  ${r.git?`<label class="mut"><input type="checkbox" id="nwt" style="padding:0"> in a new worktree</label><div class="row" id="nwb" hidden><input id="nwn" placeholder="branch, e.g. BJS-12345-task-short-name" style="flex:1;min-width:180px"><label class="mut">from</label><input id="nwf" style="width:110px"></div><div class="mut" id="nwm"></div>`:''}<div class="row" style="justify-content:space-between"><span class="mut">${esc(short(r.dir))} ${r.git?'· git':''} · ${r.sessions} sessions</span><button id="tnew" class="primary" ${cur?'':'disabled'}>Open terminal here</button></div></div>`;
   m.querySelectorAll('[data-d]').forEach(a=>a.onclick=e=>{e.preventDefault();m.dataset.ag=$('#npa').value;openNew(a.dataset.d)});
   $('#npx').onclick=()=>m.hidden=true;
-  $('#tnew').onclick=()=>{LSx.set('lastdir',r.dir);const a=$('#npa').value;m.hidden=true;openTerm('',r.dir,undefined,a)};
+  if($('#nwt'))$('#nwt').onchange=async e=>{$('#nwb').hidden=!e.target.checked;if(e.target.checked&&!$('#nwf').value){const b=await api('/api/wt-base?cwd='+encodeURIComponent(r.dir));$('#nwf').value=b.base||'main'}};
+  $('#tnew').onclick=async()=>{LSx.set('lastdir',r.dir);const a=$('#npa').value;let dir=r.dir;
+    if($('#nwt')&&$('#nwt').checked){$('#nwm').textContent='creating worktree...';const w=await api('/api/wt-new',{cwd:r.dir,branch:$('#nwn').value.trim(),base:$('#nwf').value.trim()});if(w.error){$('#nwm').textContent=w.error;return}dir=w.dir}
+    m.hidden=true;openTerm('',dir,undefined,a)};
   $('#mkb').onclick=async()=>{const x=await api('/api/mkdir',{parent:r.dir,name:$('#mk').value.trim()});if(x.error)$('#mkm').textContent=x.error;else{m.dataset.ag=$('#npa').value;openNew(x.dir)}};
 }

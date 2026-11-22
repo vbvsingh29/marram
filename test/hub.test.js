@@ -174,10 +174,10 @@ test('notes: per-project decisions are stored privately and reach the claude new
   n.setNote(work, ''); assert.strictEqual(n.getNote(work), '');
 });
 
-test('perms: only simple read-only commands are suggested, compound ones are skipped', () => {
+test('perms: rules are exactly a checked prefix; risky commands are never suggested', () => {
   const p = require('../lib/perms');
-  assert.ok(p.SAFE.test('git status -s') && p.SAFE.test('npm test') && !p.SAFE.test('rm -rf x') && !p.SAFE.test('curl http://x'));
-  assert.strictEqual(p.head('git diff --stat'), 'git diff'); assert.strictEqual(p.head('ls -la'), 'ls');
+  assert.strictEqual(p.match('git status -s'), 'git status'); assert.strictEqual(p.match('npm run test'), 'npm run test'); assert.strictEqual(p.match('ls'), 'ls');
+  for (const c of ['git branch -D x', 'find . -exec rm {} +', 'rg --pre ./x foo', 'make deploy', 'npm run build', 'node evil.js', 'rm -rf x', 'curl http://x', 'lsof -i', 'git statusx']) assert.strictEqual(p.match(c), null, c);
 });
 
 test('cost: uses only prices the user entered', () => {
