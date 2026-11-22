@@ -124,17 +124,27 @@ test('antigravity adapter: lists conversations from brain notes, read-only', () 
   assert.ok(ag.installed()); assert.ok(!ag.capabilities.chat && !ag.capabilities.resume && ag.capabilities.openFolder);
 });
 
-test('codex adapter (experimental): lists, reads transcript, builds resume command', () => {
-  const cx = require('../lib/agents/codex'), id = 'bbbbbbbb-1111-2222-3333-444444444444', d = path.join(home, '.codex', 'sessions', '2026', '11', '22'); fs.mkdirSync(d, { recursive: true });
-  const L = [{ timestamp: '2026-11-22T10:00:00Z', type: 'session_meta', payload: { id, cwd: work } },
-    { timestamp: '2026-11-22T10:00:01Z', type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: '<environment_context>x</environment_context>' }] } },
-    { timestamp: '2026-11-22T10:00:02Z', type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'rename the helper' }] } },
-    { timestamp: '2026-11-22T10:00:03Z', type: 'response_item', payload: { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: 'Done.' }] } }];
-  fs.writeFileSync(path.join(d, 'rollout-2026-11-22T10-00-00-' + id + '.jsonl'), L.map(x => JSON.stringify(x)).join('\n') + '\n');
-  const s = cx.list().sessions.find(x => x.id === id);
+test('codex adapter (experimental): lists, reads transcript, skips sub-agents and context noise, builds resume command', () => {
+  const cx = require('../lib/agents/codex'), id = 'bbbbbbbb-1111-2222-3333-444444444444', sub = 'cccccccc-9999-2222-3333-444444444444', v7 = '01997ddc-88f4-7e40-8dac-d558f31dd3ca', d = path.join(home, '.codex', 'sessions', '2026', '11', '22'); fs.mkdirSync(d, { recursive: true });
+  const msg = (role, type, text, t) => ({ timestamp: t, type: 'response_item', payload: { type: 'message', role, content: [{ type, text }] } });
+  const L = [{ timestamp: '2026-11-22T10:00:00Z', type: 'session_meta', payload: { id, cwd: work, source: 'cli', originator: 'codex_cli_rs' } },
+    msg('user', 'input_text', '<environment_context>x</environment_context>', '2026-11-22T10:00:01Z'), msg('user', 'input_text', '# AGENTS.md instructions for /x\nbe nice', '2026-11-22T10:00:01Z'),
+    msg('developer', 'input_text', 'internal rules', '2026-11-22T10:00:01Z'), msg('user', 'input_text', 'rename the helper', '2026-11-22T10:00:02Z'),
+    { timestamp: '2026-11-22T10:00:02Z', type: 'response_item', payload: { type: 'custom_tool_call', name: 'apply_patch', input: '*** Begin Patch', call_id: 'c1' } },
+    { timestamp: '2026-11-22T10:00:03Z', type: 'response_item', payload: { type: 'custom_tool_call_output', call_id: 'c1', output: 'patched' } },
+    { timestamp: '2026-11-22T10:00:03Z', type: 'response_item', payload: { type: 'function_call_output', call_id: 'c2', output: [{ type: 'input_text', text: 'listed 3 files' }] } },
+    { timestamp: '2026-11-22T10:00:03Z', type: 'response_item', payload: { type: 'reasoning', summary: [] } }, { timestamp: '2026-11-22T10:00:03Z', type: 'compacted', payload: {} },
+    msg('assistant', 'output_text', 'Done.', '2026-11-22T10:00:04Z')];
+  fs.writeFileSync(path.join(d, 'rollout-2026-11-22T10-00-00-' + id + '.jsonl'), L.map(x => JSON.stringify(x)).join('\n') + '\n{"half written');
+  fs.writeFileSync(path.join(d, 'rollout-2026-11-22T10-01-00-' + sub + '.jsonl'), JSON.stringify({ timestamp: '2026-11-22T10:01:00Z', type: 'session_meta', payload: { id: sub, cwd: work, source: { subagent: 'review' } } }) + '\n');
+  fs.writeFileSync(path.join(d, 'rollout-2026-11-22T10-02-00-' + v7 + '.jsonl'), [{ timestamp: '2026-11-22T10:02:00Z', type: 'session_meta', payload: { id: v7, cwd: work } }, { timestamp: '2026-11-22T10:02:01Z', type: 'event_msg', payload: { type: 'user_message', message: 'only an event message' } }].map(x => JSON.stringify(x)).join('\n') + '\n');
+  const all = cx.list().sessions, s = all.find(x => x.id === id);
   assert.strictEqual(s.agent, 'codex'); assert.strictEqual(s.cwd, work); assert.strictEqual(s.first, 'rename the helper'); assert.strictEqual(s.lastAssistant, 'Done.');
-  const t = cx.transcript(id, 0, 50); assert.deepStrictEqual(t.msgs.map(m => m.r), ['u', 'a']);
+  assert.ok(!all.some(x => x.id === sub), 'sub-agent threads are hidden'); assert.strictEqual(all.find(x => x.id === v7).first, 'only an event message', 'uuid v7 ids and event_msg fallback work');
+  const t = cx.transcript(id, 0, 50); assert.deepStrictEqual(t.msgs.map(m => m.r), ['u', 't', 'o', 'o', 'a']); assert.ok(t.msgs[3].t.includes('listed 3 files'));
   assert.deepStrictEqual(cx.resumeCmd({ id }), ['codex', 'resume', id]); assert.ok(cx.experimental); assert.ok(cx.installed());
+  const g = cx.diagnose(), txt = JSON.stringify(g); assert.ok(g.lineTypes['response_item:custom_tool_call'] && g.unparsableLines === 1 && g.sessionMetaKeys.includes('cwd'));
+  assert.ok(!txt.includes('rename the helper') && !txt.includes(work) && !txt.includes(id), 'diagnose never includes text, paths or ids');
 });
 
 test('optimize: token counts per transcript, duplicate message ids counted once', () => {

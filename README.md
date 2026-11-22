@@ -11,7 +11,7 @@ One local dashboard for all your AI coding agent sessions. Reads what your agent
 |---|---|---|---|---|
 | Claude Code | yes | yes | yes | full support: worktrees, skills, changes, handoff |
 | Antigravity | yes (read-only) | no | no | titles and summaries from its notes; "open folder" button. Its chats are binary |
-| Codex CLI | yes | yes | yes | **experimental**: written from the documented format, not yet verified on a real install |
+| Codex CLI | yes | yes | yes | **experimental**: checked against Codex's open-source protocol and a public sample session, not a live install. Run `node server.js --diagnose codex` to print a text-free structure summary for a bug report |
 
 Use the agent dropdown in the sidebar to filter. Agents that are not installed are greyed out.
 

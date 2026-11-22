@@ -4,6 +4,8 @@
 'use strict';
 const { PORT, TOKEN } = require('./lib/core');
 if (process.argv.includes('--url')) { console.log(`http://127.0.0.1:${PORT}/?k=${TOKEN}`); process.exit(0); }
+const di = process.argv.indexOf('--diagnose');
+if (di > 0) { const ad = process.argv[di + 1] === 'codex' ? require('./lib/agents/codex') : null; if (!ad) { console.error('usage: node server.js --diagnose codex'); process.exit(1); } console.log(JSON.stringify(ad.diagnose(), null, 2)); process.exit(0); }
 const si = process.argv.indexOf('--secret');
 if (si > 0) { const v = require('./lib/vault').vaultResolve(process.argv[si + 1], (process.argv.indexOf('--project') > 0 && process.argv[process.argv.indexOf('--project') + 1]) || process.cwd()); if (v == null) { console.error('no such secret'); process.exit(1); } process.stdout.write(v); process.exit(0); }
 const { server } = require('./lib/routes');
