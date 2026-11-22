@@ -302,7 +302,7 @@ test('messaging: Slack channel/person search, same-name flag, clear errors, webh
     await assert.rejects(integ.sendSlack({ id: 'C0000009' }, 'hi'), /not in that channel/); await assert.rejects(integ.sendSlack({ id: 'nope' }, 'hi'), /pick a channel or a person/); await assert.rejects(integ.sendSlack({ id: 'C0000001' }, '   '), /no message text/);
     const h = integ.addHook({ kind: 'teams', label: 'Team standup', url: base + '/hook/ok' }), bad = integ.addHook({ kind: 'slack', label: 'Gone', url: base + '/hook/gone' });
     const r = await integ.sendHook(h.id, 'hello team'); assert.ok(r.ok && r.label === 'Team standup'); const tb = JSON.parse(seen.filter(s => s.url === '/hook/ok').pop().body); assert.strictEqual(tb.attachments[0].content.body[0].text, 'hello team');
-    await assert.rejects(integ.sendHook(bad.id, 'x'), /HTTP 404.*Nothing was sent/); assert.throws(() => integ.addHook({ kind: 'slack', label: 'Gone', url: base + '/x' }), /already exists/);
+    await assert.rejects(integ.sendHook(bad.id, 'x'), /HTTP 404.*Nothing was sent/); await assert.rejects(integ.sendHook(bad.id, 'x'), e => !/gone/.test(e.message.replace(/probably deleted/, '')), 'response bodies are not echoed'); assert.throws(() => integ.addHook({ kind: 'slack', label: 'Gone', url: base + '/x' }), /already exists/);
     const st = JSON.stringify(integ.status()); assert.ok(!st.includes('xoxb') && !st.includes('/hook/ok') && st.includes('Team standup'));
     process.env.MARRAM_ALLOW_LOCAL_HOOKS = '0';
     for (const u of ['http://example.com/x', 'https://localhost/x', 'https://127.0.0.1/x', 'https://10.1.2.3/x', 'https://192.168.0.5/x', 'https://172.20.0.1/x', 'https://169.254.169.254/x', 'https://[::1]/x', 'https://box.internal/x', 'not a url']) assert.throws(() => integ.addHook({ kind: 'generic', label: 'x' + u.length, url: u }), u);
@@ -335,4 +335,13 @@ test('drafts: Gmail, Outlook, Teams and mail-app links are built from validated 
   const long = i.composeLink({ kind: 'gmail', to: 'a@x.com', subject: 's', body: 'word '.repeat(2000) }); assert.ok(long.shortened && long.url.length <= 1900);
   for (const bad of ['', 'nope', 'a@b', 'a@b.com, <script>', 'x@y.com\nBcc: z@z.com']) assert.throws(() => i.composeLink({ kind: 'gmail', to: bad, subject: 's', body: 'b' }), bad || 'empty');
   assert.throws(() => i.composeLink({ kind: 'evil', to: 'a@x.com', subject: 's', body: 'b' }), /unknown/);
+});
+
+test('webhook safety: private, loopback, CGNAT, link-local and mapped addresses are blocked after DNS lookup; the checked address is the one used', async () => {
+  const i = require('../lib/integrations'); delete process.env.MARRAM_ALLOW_LOCAL_HOOKS;
+  for (const a of ['127.0.0.1', '10.0.0.1', '172.16.5.5', '192.168.1.1', '169.254.169.254', '100.64.0.1', '0.0.0.0', '224.0.0.1', '::1', '::', 'fc00::1', 'fd12::1', 'fe80::1', '::ffff:127.0.0.1', '::ffff:7f00:1', '64:ff9b::7f00:1', 'nonsense']) assert.ok(i.isBlockedIp(a), a);
+  for (const a of ['8.8.8.8', '1.1.1.1', '2606:4700:4700::1111', '::ffff:8.8.8.8', '::ffff:808:808']) assert.ok(!i.isBlockedIp(a), a);
+  await assert.rejects(i.resolveSafe('localhost'), /private network/); await assert.rejects(i.resolveSafe('127.0.0.1'), /private network/); await assert.rejects(i.resolveSafe('[::1]'), /private network/); await assert.rejects(i.resolveSafe('no-such-host.invalid'), /Could not find/);
+  assert.strictEqual((await i.resolveSafe('1.1.1.1')).address, '1.1.1.1');
+  process.env.MARRAM_ALLOW_LOCAL_HOOKS = '1'; assert.strictEqual((await i.resolveSafe('127.0.0.1')).address, '127.0.0.1'); delete process.env.MARRAM_ALLOW_LOCAL_HOOKS;
 });
