@@ -1,5 +1,7 @@
 # Marram
 
+[![CI](https://github.com/vbvsingh29/marram/actions/workflows/ci.yml/badge.svg)](https://github.com/vbvsingh29/marram/actions/workflows/ci.yml)
+
 One local dashboard for all your AI coding agent sessions. Reads what your agents already keep on disk, runs the real agent in a browser terminal, and manages worktrees, skills, rules and secrets. No dependencies, no build step, no telemetry. Binds to `127.0.0.1` only.
 
 ![Marram demo: sessions, Watch, Library, Optimize, new session, close for good](docs/demo.gif)
