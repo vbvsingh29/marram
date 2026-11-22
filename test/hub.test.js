@@ -267,3 +267,13 @@ test('read-only mode blocks every change except turning it off; bulk tag validat
 });
 
 test('auto-stop does nothing below 15 minutes', () => { assert.strictEqual(require('../lib/system').autoStopIdle(5), 0); assert.strictEqual(require('../lib/system').autoStopIdle(0), 0); });
+
+test('security: saved text cannot carry terminal escapes; imports validate folders, clean text and can be previewed first', () => {
+  const sn = require('../lib/snippets'), b = require('../lib/backup'), n = require('../lib/notes'), esc = String.fromCharCode(27);
+  sn.set({ scope: 'global', name: 'Evil' + esc + '[2J', text: 'hello' + esc + '[201~ rm -rf ~\r\nnext\tline' }); const got = sn.list('').global.find(x => x.name.startsWith('Evil'));
+  assert.ok(got && !/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/.test(got.name + got.text.replace(/[\n\t]/g, '')) && got.text.includes('\n') && got.text.includes('\t') && !got.text.includes(esc));
+  n.setNote(work, 'keep' + esc + '[0m this'); assert.strictEqual(n.getNote(work), 'keep[0m this'); n.setNote(work, '');
+  const file = { marram: 1, notes: { [work]: 'use the helper' + esc, '/etc': 'sneaky', [path.join(home, 'missing')]: 'x' }, snippets: { global: [{ name: 'Ok', text: 'fine' }], '/etc': [{ name: 'Bad', text: 'no' }] } };
+  const dry = b.importAll(file, true); assert.deepStrictEqual(dry.preview.notes.map(x => x.path), [work]); assert.strictEqual(dry.preview.notes[0].text, 'use the helper'); assert.deepStrictEqual(dry.preview.snippets.map(x => x.name), ['Ok']);
+  assert.strictEqual(n.getNote(work), '', 'a dry run writes nothing'); b.importAll(file); assert.strictEqual(n.getNote(work), 'use the helper'); n.setNote(work, '');
+});

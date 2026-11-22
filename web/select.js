@@ -13,7 +13,7 @@ function drawStrip(S){
 }
 /* several at once: checkboxes appear on cards, a bar applies a status or type to all ticked */
 function selUI(){
-  const f=$('#filters');if(f&&!$('#selb')){f.insertAdjacentHTML('beforeend',`<button id="selb">${selMode?'done selecting':'select'}</button>`);$('#selb').onclick=()=>{selMode=!selMode;if(!selMode)sel.clear();draw()}}
+  const f=$('#mvm');if(f&&!$('#selb')){f.insertAdjacentHTML('beforeend',`<button id="selb">${selMode?'done selecting':'select several'}</button>`);$('#selb').onclick=()=>{selMode=!selMode;if(!selMode)sel.clear();draw()}}
   let bar=$('#bulk');if(!selMode){if(bar)bar.hidden=true;return}
   document.querySelectorAll('.card[data-id]').forEach(c=>{const h=c.querySelector('h3');if(!h||h.querySelector('.sk'))return;const k=document.createElement('input');k.type='checkbox';k.className='sk';k.style.padding='0';k.checked=sel.has(c.dataset.id);k.onchange=()=>{k.checked?sel.add(c.dataset.id):sel.delete(c.dataset.id);paintBulk()};h.prepend(k)});
   if(!bar){bar=document.createElement('div');bar.id='bulk';document.body.appendChild(bar)}

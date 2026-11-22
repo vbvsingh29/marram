@@ -45,7 +45,8 @@ function draw(){
   $('#recent').innerHTML='<option value="">Recent chats...</option>'+rs.map(s=>`<option value="${s.id}">${esc((s.name||s.title||s.first.slice(0,50)||s.id).slice(0,60))} &middot; ${ago(s.mtime)}</option>`).join('');
   $('#recent').onchange=e=>{if(e.target.value)jump(e.target.value)};
   const cnt=k=>S.filter(s=>inProj(s)&&(k==='all'||(k==='running'?s.running:s.status===k))).length;
-  $('#filters').innerHTML=['all','running',...ST].map(k=>`<button class="${flt===k?'on':''}" data-f="${k}">${k} (${cnt(k)})</button>`).join('')+`<button id="vw">${view==='board'?'card view':'board view'}</button><button id="rpb">daily update</button><button id="ins">${LSx.get('ins')==='1'?'hide insights':'insights'}</button><button id="rf">refresh</button>`;
+  $('#filters').innerHTML=['all','running',...ST].map(k=>`<button class="${flt===k?'on':''}" data-f="${k}">${k} (${cnt(k)})</button>`).join('')+`<span class="mw" style="margin-left:auto"><button id="mvb" title="more views and actions">more &#9662;</button><div class="mm" id="mvm" hidden><button id="vw">${view==='board'?'card view':'board view'}</button><button id="rpb">daily update</button><button id="ins">${LSx.get('ins')==='1'?'hide insights':'insights'}</button><button id="rf">refresh</button></div></span>`;
+  $('#mvb').onclick=e=>{e.stopPropagation();const m=$('#mvm'),was=m.hidden;document.querySelectorAll('.mm').forEach(x=>x.hidden=true);m.hidden=!was};
   document.querySelectorAll('[data-f]').forEach(b=>b.onclick=()=>{flt=b.dataset.f;draw()});$('#rf').onclick=load;$('#rpb').onclick=()=>openReport();$('#ins').onclick=()=>{LSx.set('ins',LSx.get('ins')==='1'?'0':'1');draw()};$('#vw').onclick=()=>{view=view==='board'?'cards':'board';draw()};
   const qq=($('#q').value||'').toLowerCase();
   const L=S.filter(s=>(!qq||(s.name+' '+s.title+' '+s.first+' '+s.last+' '+s.cwd+' '+s.id+' '+s.note).toLowerCase().includes(qq))&&inProj(s)&&(flt==='all'||(flt==='running'?s.running:s.status===flt)));
