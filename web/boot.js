@@ -9,7 +9,7 @@ document.addEventListener('keydown',e=>{
   else if(e.key==='?')$('#help').style.display=$('#help').style.display==='block'?'none':'block';
   else if(e.key==='b'){view=view==='board'?'cards':'board';draw()}
   else if((e.key==='j'||e.key==='k')&&cards.length){if(i>=0)cards[i].classList.remove('foc');i=e.key==='j'?Math.min(cards.length-1,i+1):Math.max(0,i-1);cards[i].classList.add('foc');cards[i].scrollIntoView({block:'center'})}
-  else if('alrd'.includes(e.key)&&i>=0){const k={a:'active',l:'later',r:'revisit',d:'done'}[e.key],id=cards[i].dataset.id;api('/api/tag',{id,status:k}).then(()=>{focusId=id;load()})}
+  else if('alrdc'.includes(e.key)&&i>=0){const k={a:'active',l:'later',r:'revisit',d:'done',c:'closed'}[e.key],id=cards[i].dataset.id;api('/api/tag',{id,status:k}).then(()=>{focusId=id;load()})}
 });
 if(/^#\/\w+/.test(location.hash))route();else setTab('sessions');
 $('#q').oninput=draw;$('#hb').onchange=draw;

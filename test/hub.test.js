@@ -208,3 +208,15 @@ test('destroySession: removes transcript and leftovers for that id only, and cle
   assert.deepStrictEqual(Object.keys(JSON.parse(fs.readFileSync(tf, 'utf8'))), [other]);
   assert.throws(() => S.destroySession(id), /not found/); assert.throws(() => S.destroySession('../../etc'), /bad session id/);
 });
+
+test('closed is a normal status: it can be set and reopened through the tag API, unlike close-for-good', async () => {
+  const port = await new Promise(r => hub.server.listen(0, '127.0.0.1', () => r(hub.server.address().port))), tok = fs.readFileSync(path.join(home, '.claude', 'hub-token'), 'utf8').trim();
+  const H = { host: '127.0.0.1:' + port, cookie: 'hub_tok=' + tok, 'x-hub': '1', 'content-type': 'application/json' };
+  try {
+    await req(port, 'POST', '/api/tag', H, JSON.stringify({ id: ID, status: 'closed' }));
+    assert.strictEqual(JSON.parse((await req(port, 'GET', '/api/sessions', H)).body).sessions.find(s => s.id === ID).status, 'closed');
+    await req(port, 'POST', '/api/tag', H, JSON.stringify({ id: ID, status: 'active' }));
+    assert.strictEqual(JSON.parse((await req(port, 'GET', '/api/sessions', H)).body).sessions.find(s => s.id === ID).status, 'active');
+    assert.ok(fs.existsSync(path.join(pdir, ID + '.jsonl')), 'closing never deletes the chat');
+  } finally { hub.server.close(); }
+});

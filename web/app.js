@@ -1,6 +1,6 @@
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const ST=['active','later','revisit','done'];
+const ST=['active','later','revisit','done','closed'];
 let lim=50,limKey='',hc='',hq='',TK=[],TRE=null,openG=new Map(),pg=false,tab='sessions',D={sessions:[],liveProcs:0,jira:''},focusId='',proj='ALL',agent='all',flt='all',rulesCache={},view='cards';
 const LSx={get:k=>{try{return localStorage.getItem('hub.'+k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem('hub.'+k,v)}catch{}}};
 try{const t=LSx.get('theme');if(t)document.documentElement.dataset.theme=t;proj=LSx.get('proj')||'ALL';pg=LSx.get('pg')==='1';flt=LSx.get('flt')||'all';view=LSx.get('view')||'cards';openG=new Map(JSON.parse(LSx.get('open')||'[]'))}catch{}
@@ -56,7 +56,7 @@ function draw(){
   const fc=focusId&&document.querySelector('.card[data-id="'+focusId+'"]');if(fc)fc.classList.add('foc');focusId='';
   syncHash();LSx.set('proj',proj);LSx.set('pg',pg?1:0);LSx.set('flt',flt);LSx.set('view',view);LSx.set('open',JSON.stringify([...openG]));
 }
-const SC={active:'--s1',later:'--s2',revisit:'--s3',done:'--s4'};
+const SC={active:'--s1',later:'--s2',revisit:'--s3',done:'--s4',closed:'--s5'};
 function tipOn(el,t){el.onmousemove=e=>{const p=$('#tip');p.textContent=t;p.style.display='block';p.style.left=e.clientX+12+'px';p.style.top=e.clientY+12+'px'};el.onmouseleave=()=>$('#tip').style.display='none'}
 function stats(S){
   const sc=S.filter(s=>inProj(s)),n=k=>sc.filter(s=>s.status===k).length,T=sc.length||1;

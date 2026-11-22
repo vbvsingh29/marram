@@ -9,7 +9,7 @@ async function drawOpt(){
   const b=$('#ob');if(ol==='system')return drawOptSystem(b);if(ol==='token')return drawOptTokens(b);drawOptSessions(b);
 }
 async function drawOptSessions(el){
-  const L=D.sessions.filter(s=>s.status!=='done').sort((a,b)=>b.size-a.size).slice(0,15),p=await api('/api/auto-close-preview');
+  const L=D.sessions.filter(s=>s.status!=='done'&&s.status!=='closed').sort((a,b)=>b.size-a.size).slice(0,15),p=await api('/api/auto-close-preview');
   el.innerHTML=`<div class="card"><h3>Biggest open sessions</h3><div class="mut">A big session carries a lot of context into every turn. Finish it, copy a handoff, start fresh, or mark it done.</div>${L.map(s=>`<div class="row"><b>${s.size>1048576?(s.size/1048576).toFixed(1)+' MB':(s.size/1024).toFixed(0)+' KB'}</b><a href="#" data-j="${s.id}">${esc(s.name||s.title||s.first.slice(0,60)||s.id)}</a><span class="mut">${esc(short(s.cwd).split('/').pop())} · ${ago(s.mtime)}</span>${s.running?'<span class="badge run">running</span>':''}<button data-done="${s.id}">mark done</button></div>`).join('')}</div>
   <div class="card"><h3>Forgotten</h3><div class="mut">${p.n} session(s) idle ${p.days}+ days with no tag are marked done automatically every 6 hours.</div></div>`;
   el.querySelectorAll('[data-j]').forEach(a=>a.onclick=e=>{e.preventDefault();jump(a.dataset.j)});
