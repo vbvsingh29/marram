@@ -25,8 +25,9 @@ function openReport(){
   const paint=()=>{m.dataset.k=k;m.innerHTML=`<div class="npb" style="width:min(640px,100%)"><div class="row" style="justify-content:space-between;margin:0"><h1 style="margin:0">Daily update</h1><button id="rpx">close</button></div>
     <div class="chips" style="margin:0">${Object.entries(RANGES).map(([x,l])=>`<button data-rk="${x}" class="${k===x?'on':''}">${l}</button>`).join('')}</div>
     <textarea id="rpt" style="min-height:260px;font-family:var(--ui);font-size:14px">${esc(buildReport(k))}</textarea>
-    <div class="row" style="justify-content:space-between"><span class="mut">Built from your session titles and tickets. Edit freely before you send it.</span><button id="rpc" class="primary">Copy</button></div></div>`;
+    <div class="row" style="justify-content:space-between"><span class="mut">Built from your session titles and tickets. Edit freely before you send it.</span><span><button id="rps">Send...</button> <button id="rpc" class="primary">Copy</button></span></div></div>`;
     $('#rpx').onclick=()=>m.hidden=true;m.querySelectorAll('[data-rk]').forEach(b=>b.onclick=()=>{k=b.dataset.rk;paint()});
+    $('#rps').onclick=()=>{const t=$('#rpt').value;m.hidden=true;openSend(t)};
     $('#rpc').onclick=async e=>{try{await navigator.clipboard.writeText($('#rpt').value);e.target.textContent='copied'}catch{$('#rpt').select();e.target.textContent='press Ctrl+C'}}};
   paint();
 }

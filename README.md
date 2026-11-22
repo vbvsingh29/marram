@@ -27,6 +27,8 @@ Use the agent dropdown in the sidebar to filter. Agents that are not installed a
 - **Library**: global and per-project rules (`CLAUDE.md`), skills, saved prompts, a decisions note that is added to new sessions, a secrets vault (injected as environment variables into sessions started here), and backup / restore.
 - **Skills** and **Hyped**: usage, enable per folder, discover / preview / install skills from GitHub.
 - **Optimize**: big and forgotten sessions, token counts and optional costs from your own prices, processes and memory, and opt-in stopping of idle sessions.
+- **Messaging**: send a message to Slack (a channel or a person, through a bot token you create), to any incoming webhook (Slack, Teams, Discord, other), or open a ready draft in Gmail, Outlook, Outlook.com, your mail app or a Teams chat. Every send shows who it goes to and asks you to confirm; drafts are opened in your own app, so Marram stores no mail or Teams sign-in. Library shows what is connected.
+- **Custom agents**: add any command-line tool (aider, gemini, opencode, your own script) and run it in the terminal from "+ New session".
 - **Close for good**: stops a session's process and deletes its chat after you type `DELETE`. It cannot be undone.
 - **Read-only mode** for demos and screen sharing, and a small activity log of what Marram itself did.
 - Deep links for every view, e.g. `#/sessions?a=antigravity`, `#/work`, `#/sessions?chat=<session id>`.

@@ -26,6 +26,7 @@ async function libGlobalExtras(el){
     <div class="row"><button id="bkx">Export backup</button><label class="mut">Import <input type="file" id="bki" accept="application/json" style="padding:0"></label><span class="mut" id="bkm"></span></div></div>
    <div class="card"><h3>Recent activity</h3>${(M.activity||[]).map(a=>`<div class="row"><span class="mut">${new Date(a.t).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span><span>${esc(a.action)}</span><span class="mut">${esc(a.detail)}</span></div>`).join('')||'<div class="mut">Nothing yet. Deletions, automatic stops and imports are listed here.</div>'}</div>`);
   bindSnips(el,'global');
+  libIntegrations(el);
   $('#bkx').onclick=async()=>{const r=await fetch('/api/export',{headers:{'x-hub':'1'}}),b=await r.blob(),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='marram-backup.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),2000)};
   $('#bki').onchange=async e=>{const f=e.target.files[0];if(!f)return;let data;try{data=JSON.parse(await f.text())}catch{$('#bkm').textContent='not a valid file';return}
     const d=await api('/api/import',{data,dryRun:true});if(d.error){$('#bkm').textContent=d.error;return}

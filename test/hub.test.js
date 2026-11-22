@@ -277,3 +277,62 @@ test('security: saved text cannot carry terminal escapes; imports validate folde
   const dry = b.importAll(file, true); assert.deepStrictEqual(dry.preview.notes.map(x => x.path), [work]); assert.strictEqual(dry.preview.notes[0].text, 'use the helper'); assert.deepStrictEqual(dry.preview.snippets.map(x => x.name), ['Ok']);
   assert.strictEqual(n.getNote(work), '', 'a dry run writes nothing'); b.importAll(file); assert.strictEqual(n.getNote(work), 'use the helper'); n.setNote(work, '');
 });
+
+test('messaging: Slack channel/person search, same-name flag, clear errors, webhooks, no secrets in status, no private addresses', async () => {
+  const integ = require('../lib/integrations'), seen = [];
+  const srv = http.createServer((rq, rs) => { let b = ''; rq.on('data', d => b += d); rq.on('end', () => {
+    const q = new URLSearchParams(rq.url.startsWith('/hook') ? '' : b), j = o => { rs.writeHead(200, { 'content-type': 'application/json' }); rs.end(JSON.stringify(o)); }; seen.push({ url: rq.url, auth: rq.headers.authorization, body: rq.url.startsWith('/hook') ? b : Object.fromEntries(q) });
+    if (rq.url === '/auth.test') return j({ ok: true, team: 'Acme', user: 'marram' });
+    if (rq.url === '/users.list') return j({ ok: true, members: [{ id: 'U0000001', name: 'alex.k', real_name: 'Alex Kim', profile: { email: 'alex.kim@acme.test', title: 'Backend' } }, { id: 'U0000002', name: 'alex.k2', real_name: 'Alex Kim', profile: { email: 'alex.kim@other.test', title: 'Design' } }, { id: 'U0000003', name: 'sam', real_name: 'Sam Lee', profile: { email: 'sam@acme.test' } }, { id: 'U0000004', name: 'bot', real_name: 'Alex Bot', is_bot: true, profile: {} }, { id: 'U0000005', name: 'gone', real_name: 'Alex Gone', deleted: true, profile: {} }], response_metadata: { next_cursor: '' } });
+    if (rq.url === '/conversations.list') return j({ ok: true, channels: [{ id: 'C0000001', name: 'team-updates', num_members: 9 }, { id: 'C0000002', name: 'secret', is_private: true }], response_metadata: { next_cursor: '' } });
+    if (rq.url === '/chat.postMessage') return q.get('channel') === 'C0000009' ? j({ ok: false, error: 'not_in_channel' }) : j({ ok: true, channel: q.get('channel'), ts: '1.2' });
+    if (rq.url === '/chat.getPermalink') return j({ ok: true, permalink: 'https://acme.example/p/1' });
+    if (rq.url === '/hook/ok') { rs.writeHead(200); return rs.end('ok'); } rs.writeHead(404); rs.end('gone');
+  }); });
+  await new Promise(r => srv.listen(0, '127.0.0.1', r)); const base = 'http://127.0.0.1:' + srv.address().port;
+  process.env.MARRAM_SLACK_API = base; process.env.MARRAM_ALLOW_LOCAL_HOOKS = '1';
+  try {
+    assert.throws(() => integ.setSlackToken('hello'), /xoxb/); integ.setSlackToken('xoxb-123456789012-abcdefabcdef');
+    assert.deepStrictEqual(await integ.slackTest(), { workspace: 'Acme', as: 'marram', url: undefined });
+    const people = await integ.findPeople('alex'); assert.deepStrictEqual(people.map(p => p.id), ['U0000001', 'U0000002']); assert.ok(people.every(p => p.sameName) && people[0].email !== people[1].email);
+    assert.strictEqual((await integ.findPeople('sam')).length, 1); assert.strictEqual((await integ.findPeople('sam'))[0].sameName, false);
+    assert.deepStrictEqual((await integ.findChannels('#team')).map(c => c.name), ['team-updates']);
+    const ok = await integ.sendSlack({ id: 'C0000001' }, 'Daily update\nline two'); assert.ok(ok.ok && ok.link.includes('acme.example'));
+    assert.strictEqual(seen.find(s => s.url === '/chat.postMessage').auth, 'Bearer xoxb-123456789012-abcdefabcdef');
+    await assert.rejects(integ.sendSlack({ id: 'C0000009' }, 'hi'), /not in that channel/); await assert.rejects(integ.sendSlack({ id: 'nope' }, 'hi'), /pick a channel or a person/); await assert.rejects(integ.sendSlack({ id: 'C0000001' }, '   '), /no message text/);
+    const h = integ.addHook({ kind: 'teams', label: 'Team standup', url: base + '/hook/ok' }), bad = integ.addHook({ kind: 'slack', label: 'Gone', url: base + '/hook/gone' });
+    const r = await integ.sendHook(h.id, 'hello team'); assert.ok(r.ok && r.label === 'Team standup'); const tb = JSON.parse(seen.filter(s => s.url === '/hook/ok').pop().body); assert.strictEqual(tb.attachments[0].content.body[0].text, 'hello team');
+    await assert.rejects(integ.sendHook(bad.id, 'x'), /HTTP 404.*Nothing was sent/); assert.throws(() => integ.addHook({ kind: 'slack', label: 'Gone', url: base + '/x' }), /already exists/);
+    const st = JSON.stringify(integ.status()); assert.ok(!st.includes('xoxb') && !st.includes('/hook/ok') && st.includes('Team standup'));
+    process.env.MARRAM_ALLOW_LOCAL_HOOKS = '0';
+    for (const u of ['http://example.com/x', 'https://localhost/x', 'https://127.0.0.1/x', 'https://10.1.2.3/x', 'https://192.168.0.5/x', 'https://172.20.0.1/x', 'https://169.254.169.254/x', 'https://[::1]/x', 'https://box.internal/x', 'not a url']) assert.throws(() => integ.addHook({ kind: 'generic', label: 'x' + u.length, url: u }), u);
+    assert.ok(integ.addHook({ kind: 'slack', label: 'Real', url: 'https://hooks.slack.com/services/T000/B000/XXXX' }).id);
+  } finally { srv.close(); delete process.env.MARRAM_SLACK_API; delete process.env.MARRAM_ALLOW_LOCAL_HOOKS; integ.clearSlack(); }
+});
+
+test('messaging route: a send without the confirmation flag is refused and sends nothing', async () => {
+  const port = await new Promise(r => hub.server.listen(0, '127.0.0.1', () => r(hub.server.address().port))), tok = fs.readFileSync(path.join(home, '.claude', 'hub-token'), 'utf8').trim();
+  const H = { host: '127.0.0.1:' + port, cookie: 'hub_tok=' + tok, 'x-hub': '1', 'content-type': 'application/json' };
+  try { assert.match((await req(port, 'POST', '/api/send', H, JSON.stringify({ via: 'hook', hookId: 'x', text: 'hi' }))).body, /confirmation required/); assert.match((await req(port, 'POST', '/api/send', H, JSON.stringify({ via: 'nope', text: 'hi', confirm: true }))).body, /choose where/); } finally { hub.server.close(); }
+});
+
+test('custom agents: any command becomes a terminal-only agent, parsed without a shell', () => {
+  const c = require('../lib/agents/custom'), reg = require('../lib/agents');
+  assert.deepStrictEqual(c.parseCommand('aider --model "gpt 4" -v'), ['aider', '--model', 'gpt 4', '-v']);
+  assert.throws(() => c.set({ label: '', command: 'x' }), /name/); assert.throws(() => c.set({ label: 'A', command: '' }), /command/); assert.throws(() => c.set({ label: 'A', command: 'rm;ls' }), /program name/); assert.throws(() => c.set({ label: 'Claude', command: 'x' }), /different name/);
+  const r = c.set({ label: 'My Tool', command: 'node --version' }); assert.strictEqual(r.id, 'x-my-tool');
+  const a = reg.get('x-my-tool'); assert.deepStrictEqual(a.newCmd(), ['node', '--version']); assert.ok(a.capabilities.newSession && !a.capabilities.resume); assert.ok(reg.agents().find(x => x.id === 'x-my-tool').installed);
+  c.del('x-my-tool'); assert.strictEqual(reg.get('x-my-tool'), undefined);
+});
+
+test('drafts: Gmail, Outlook, Teams and mail-app links are built from validated addresses and shortened when long', () => {
+  const i = require('../lib/integrations');
+  const g = i.composeLink({ kind: 'gmail', to: 'a@x.com, b@y.org', subject: 'Update & notes', body: 'Hi\nline two' }); assert.ok(g.url.startsWith('https://mail.google.com/mail/?view=cm') && g.url.includes('to=a%40x.com%2Cb%40y.org') && g.url.includes('su=Update%20%26%20notes') && g.url.includes('%0A') && !g.shortened);
+  assert.ok(i.composeLink({ kind: 'outlook', to: 'a@x.com', subject: 's', body: 'b' }).url.startsWith('https://outlook.office.com/mail/deeplink/compose?to=a%40x.com'));
+  assert.ok(i.composeLink({ kind: 'outlookcom', to: 'a@x.com', subject: 's', body: 'b' }).url.startsWith('https://outlook.live.com/'));
+  assert.ok(i.composeLink({ kind: 'teams', to: 'a@x.com;b@x.com', body: 'hello' }).url.startsWith('https://teams.microsoft.com/l/chat/0/0?users=a%40x.com%2Cb%40x.com&message=hello'));
+  assert.ok(i.composeLink({ kind: 'mailto', to: 'a@x.com', subject: 's', body: 'b' }).url.startsWith('mailto:a%40x.com?subject=s'));
+  const long = i.composeLink({ kind: 'gmail', to: 'a@x.com', subject: 's', body: 'word '.repeat(2000) }); assert.ok(long.shortened && long.url.length <= 1900);
+  for (const bad of ['', 'nope', 'a@b', 'a@b.com, <script>', 'x@y.com\nBcc: z@z.com']) assert.throws(() => i.composeLink({ kind: 'gmail', to: bad, subject: 's', body: 'b' }), bad || 'empty');
+  assert.throws(() => i.composeLink({ kind: 'evil', to: 'a@x.com', subject: 's', body: 'b' }), /unknown/);
+});

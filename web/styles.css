@@ -127,3 +127,5 @@ button.danger{background:var(--err);color:#fff;border-color:var(--err)}button.da
 .sk{margin-right:2px}
 @media(max-width:800px){#tmain.split2{grid-template-columns:1fr}}
 #mvm{left:auto;right:0}
+
+.dot{width:9px;height:9px;border-radius:50%;background:var(--bd);display:inline-block;flex:none}.dot.on{background:var(--ac)}.conn{margin:8px 0 10px}

@@ -2,7 +2,7 @@
 let palItems=[],palSel=0;
 function palBuild(){
   const A=[{l:'New session',h:'action',run:()=>openNew()},{l:'Daily update (copy for Slack)',h:'action',run:()=>openReport()},
-    {l:'Switch theme',h:'action',run:()=>$('#th').click()},{l:'Select several sessions',h:'action',run:()=>{setTab('sessions');selMode=true;draw()}}];
+    {l:'Send a message (Slack, Teams, webhook)',h:'action',run:()=>openSend('')},{l:'Switch theme',h:'action',run:()=>$('#th').click()},{l:'Select several sessions',h:'action',run:()=>{setTab('sessions');selMode=true;draw()}}];
   const T=TABS.map(t=>({l:'Go to '+t[1],h:'tab',run:()=>setTab(t[0])}));
   const seen=new Set(),P=[];D.sessions.forEach(s=>{const r=s.repo||s.cwd;if(!seen.has(r)){seen.add(r);P.push({l:'Project: '+short(r).split('/').pop(),h:short(r),run:()=>{setTab('sessions');proj=r;pg=true;draw();loadRules()}})}});
   const S=[...D.sessions].sort((a,b)=>b.mtime-a.mtime).slice(0,300).map(s=>({l:s.name||s.title||(s.first||'').slice(0,70)||s.id,h:short(s.cwd).split('/').pop()+' · '+ago(s.mtime)+(s.pin?' · pinned':''),run:()=>jump(s.id)}));
