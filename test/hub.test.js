@@ -102,3 +102,12 @@ test('vault rejects names that could hijack a process', () => {
   fs.writeFileSync(v.VF, JSON.stringify({ items: [{ id: 'x', name: 'LD_PRELOAD', value: '/evil.so', scope: 'global' }] }));
   assert.strictEqual(v.vaultEnv(work).LD_PRELOAD, undefined);
 });
+
+test('agent registry: claude adapter lists sessions tagged with agent and builds commands', () => {
+  const reg = require('../lib/agents'), cl = reg.get('claude');
+  assert.deepStrictEqual(cl.resumeCmd({ id: ID }), ['claude', '--resume', ID]);
+  assert.deepStrictEqual(cl.newCmd(work, ID), ['claude', '--session-id', ID]);
+  assert.ok(reg.agents().some(a => a.id === 'claude' && a.capabilities.resume));
+  const l = cl.list(); assert.ok(l.sessions.length && l.sessions.every(s => s.agent === 'claude'));
+  assert.strictEqual(reg.sessions('nope').sessions.length, 0);
+});

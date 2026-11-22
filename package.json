@@ -1,7 +1,7 @@
 {
-  "name": "claude-session-hub",
+  "name": "agenthelm",
   "version": "0.1.0",
-  "description": "Local web dashboard to manage all your Claude Code sessions, worktrees and skills, with a live terminal view.",
+  "description": "Local web dashboard to manage your AI coding agent sessions, worktrees and skills, with a live terminal view.",
   "main": "server.js",
   "scripts": { "start": "node server.js",
     "test": "node --test test/*.test.js" },

@@ -1,4 +1,4 @@
-# Claude Session Hub
+# AgentHelm
 
 A local, dependency-free web dashboard for [Claude Code](https://claude.com/claude-code). It reads the session transcripts Claude Code already keeps in `~/.claude` and gives you one page to manage all of them.
 

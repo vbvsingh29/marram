@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset="utf-8"><title>Claude Session Hub</title>
+<!doctype html><html><head><meta charset="utf-8"><title>AgentHelm</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css"><script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script><script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400&display=swap">
 <style>
@@ -79,13 +79,13 @@ svg text{fill:var(--mut);font:11px var(--ui)}
 #help{position:fixed;right:14px;bottom:14px;background:var(--panel);border:1px solid var(--bd);border-radius:10px;padding:10px 14px;font-size:12px;z-index:8;display:none;line-height:1.7}
 table{border-collapse:collapse;width:100%;font-size:12px}td,th{padding:5px 8px;border-bottom:1px solid var(--bd);text-align:left;overflow-wrap:anywhere}th{color:var(--mut);font-weight:500}.tw{overflow-x:auto}
 </style></head><body>
-<aside><h1>Claude Session Hub <button id="th" style="float:right;padding:1px 8px;font-size:11px">theme</button></h1><div class="mut" id="sum"></div><label class="mut" style="display:block;margin:8px 0"><input type="checkbox" id="hb" checked style="padding:0"> hide backup dirs</label><div id="projs"></div></aside>
+<aside><h1>AgentHelm <button id="th" style="float:right;padding:1px 8px;font-size:11px">theme</button></h1><div class="mut" id="sum"></div><select id="agsel" title="coding agent" style="width:100%;margin:6px 0"></select><label class="mut" style="display:block;margin:8px 0"><input type="checkbox" id="hb" checked style="padding:0"> hide backup dirs</label><div id="projs"></div></aside>
 <main><div class="bar" id="tabs"></div><div id="chg" hidden></div><div id="newp" hidden></div><div id="trm" hidden></div><div id="skl" hidden></div><div id="lib" hidden></div><div id="hyp" hidden></div><div id="opt" hidden></div><div id="tkt" hidden></div><div id="wtp" hidden></div><div id="srp" hidden></div><div id="sess"><div class="bar"><select id="recent"></select><button id="qs" title="full-text search inside every chat">search inside chats</button><input id="q" placeholder="filter sessions by title, folder, ticket or note  ( / )" style="flex:1;min-width:160px"></div><div id="stats"></div><div class="bar" id="filters"></div><div id="wtb"></div><div id="rules"></div><div id="list"></div></div></main>
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ST=['active','later','revisit','done'];
-let lim=50,limKey='',hc='',hq='',TK=[],TRE=null,openG=new Map(),pg=false,tab='sessions',D={sessions:[],liveProcs:0,jira:''},focusId='',proj='ALL',flt='all',rulesCache={},view='cards';
+let lim=50,limKey='',hc='',hq='',TK=[],TRE=null,openG=new Map(),pg=false,tab='sessions',D={sessions:[],liveProcs:0,jira:''},focusId='',proj='ALL',agent='all',flt='all',rulesCache={},view='cards';
 const LSx={get:k=>{try{return localStorage.getItem('hub.'+k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem('hub.'+k,v)}catch{}}};
 try{const t=LSx.get('theme');if(t)document.documentElement.dataset.theme=t;proj=LSx.get('proj')||'ALL';pg=LSx.get('pg')==='1';flt=LSx.get('flt')||'all';view=LSx.get('view')||'cards';openG=new Map(JSON.parse(LSx.get('open')||'[]'))}catch{}
 const api=(p,b)=>fetch(p,b?{method:'POST',headers:{'content-type':'application/json','x-hub':'1'},body:JSON.stringify(b)}:{headers:{'x-hub':'1'}}).then(r=>r.json());
@@ -99,11 +99,13 @@ const rowSig=s=>s.status+':'+(s.running?1:0)+':'+(s.name||'')+':'+(s.note||'');
 let lastSig='';
 const sigOf=d=>d.sessions.map(s=>s.id+':'+rowSig(s)).join('|');
 function showUpd(n){let b=$('#upd');if(!b){b=document.createElement('button');b.id='upd';b.className='primary';b.onclick=()=>{b.hidden=true;draw()};document.body.appendChild(b)}b.textContent=n+' session'+(n==1?'':'s')+' updated - click to refresh the list';b.hidden=false}
-async function load(){D=await api('/api/sessions');TK=D.tickets||[];TRE=TK.length?new RegExp('\\b(?:'+TK.join('|')+')-\\d+\\b','g'):null;lastSig=sigOf(D);const b=$('#upd');if(b)b.hidden=true;draw()}
+const sessUrl=()=>'/api/sessions'+(agent!=='all'?'?agent='+agent:'');
+function drawAgents(){const A=D.agents||[],el=$('#agsel');el.innerHTML='<option value="all">All agents</option>'+A.map(a=>`<option value="${a.id}" ${a.installed?'':'disabled'}>${esc(a.label)}${a.installed?'':' (not installed)'}</option>`).join('');el.value=agent;el.onchange=()=>{agent=el.value;syncHash();load()}}
+async function load(){D=await api(sessUrl());drawAgents();TK=D.tickets||[];TRE=TK.length?new RegExp('\\b(?:'+TK.join('|')+')-\\d+\\b','g'):null;lastSig=sigOf(D);const b=$('#upd');if(b)b.hidden=true;draw()}
 // Background refresh never redraws the page under you: it only fetches, and offers a refresh button if something changed.
 async function poll(){
   if(document.hidden)return;
-  const d=await api('/api/sessions').catch(()=>null);if(!d||!d.sessions)return;
+  const d=await api(sessUrl()).catch(()=>null);if(!d||!d.sessions)return;
   const sg=sigOf(d);if(sg===lastSig){D=d;return}
   const old=new Map(D.sessions.map(s=>[s.id,rowSig(s)]));let n=0;for(const s of d.sessions)if(old.get(s.id)!==rowSig(s))n++;
   const added=d.sessions.filter(s=>!old.has(s.id)).length;D=d;lastSig=sg;if(n||added)showUpd(n)}
@@ -278,13 +280,14 @@ document.addEventListener('click',e=>{const a=e.target.closest('[data-vc],[data-
 
 /* ---- URL routing: #/<tab>?p=<project>&g=1&f=<filter>&v=<view>&chat=<session id> ---- */
 let chatId='';
-function curHash(){const p=new URLSearchParams();if(proj!=='ALL')p.set('p',proj);if(pg)p.set('g','1');if(flt!=='all')p.set('f',flt);if(view!=='cards')p.set('v',view);if(chatId)p.set('chat',chatId);const q=p.toString();return '#/'+tab+(q?'?'+q:'')}
+function curHash(){const p=new URLSearchParams();if(proj!=='ALL')p.set('p',proj);if(agent!=='all')p.set('a',agent);if(pg)p.set('g','1');if(flt!=='all')p.set('f',flt);if(view!=='cards')p.set('v',view);if(chatId)p.set('chat',chatId);const q=p.toString();return '#/'+tab+(q?'?'+q:'')}
 function syncHash(){const h=curHash();if(h!==location.hash)history[location.hash?'pushState':'replaceState'](null,'',h)}
 async function route(){
   const m=location.hash.match(/^#\/(\w+)(?:\?(.*))?$/);if(!m)return;const p=new URLSearchParams(m[2]||'');
-  proj=p.get('p')||'ALL';pg=p.get('g')==='1';flt=p.get('f')||'all';view=p.get('v')||'cards';
+  proj=p.get('p')||'ALL';const na=p.get('a')||'all';const agentChanged=na!==agent;agent=na;pg=p.get('g')==='1';flt=p.get('f')||'all';view=p.get('v')||'cards';
   const t=TABS.some(x=>x[0]===m[1])?m[1]:'sessions';setTab(t,true);
   const c=p.get('chat');
+  if(agentChanged&&D.sessions.length)await load();
   if(c){if(!D.sessions.length)await load();else draw();chatId=c;openChat(c,true)}else{chatId='';const o=$('#chatv');if(o)o.hidden=true;if(D.sessions.length)draw()}
   if(proj!=='ALL')loadRules();
 }
