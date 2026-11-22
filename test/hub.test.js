@@ -174,10 +174,10 @@ test('notes: per-project decisions are stored privately and reach the claude new
   n.setNote(work, ''); assert.strictEqual(n.getNote(work), '');
 });
 
-test('perms: rules are exactly a checked prefix; risky commands are never suggested', () => {
+test('perms: only exact read-only commands are suggested; code-running and flag-risky ones never', () => {
   const p = require('../lib/perms');
-  assert.strictEqual(p.match('git status -s'), 'git status'); assert.strictEqual(p.match('npm run test'), 'npm run test'); assert.strictEqual(p.match('ls'), 'ls');
-  for (const c of ['git branch -D x', 'find . -exec rm {} +', 'rg --pre ./x foo', 'make deploy', 'npm run build', 'node evil.js', 'rm -rf x', 'curl http://x', 'lsof -i', 'git statusx']) assert.strictEqual(p.match(c), null, c);
+  assert.strictEqual(p.match('git status -s'), 'git status -s'); assert.strictEqual(p.match('git  diff   --stat'), 'git diff --stat'); assert.strictEqual(p.match('ls'), 'ls');
+  for (const c of ['git diff --output=/tmp/x', 'git diff --ext-diff', 'git log -c', 'git -c core.pager=x log', 'git branch -D x', 'find . -exec rm {} +', 'rg --pre ./x foo', 'make deploy', 'npm test', 'npm run build', 'pytest', 'node --test', 'go test ./...', 'node evil.js', 'rm -rf x', 'curl http://x', 'lsof -i', 'git statusx']) assert.strictEqual(p.match(c), null, c);
 });
 
 test('cost: uses only prices the user entered', () => {
