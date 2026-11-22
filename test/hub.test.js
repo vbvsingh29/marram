@@ -174,10 +174,11 @@ test('notes: per-project decisions are stored privately and reach the claude new
   n.setNote(work, ''); assert.strictEqual(n.getNote(work), '');
 });
 
-test('perms: only exact read-only commands are suggested; code-running and flag-risky ones never', () => {
+test('perms: exact read-only commands pass a strict token allowlist; everything else is rejected', () => {
   const p = require('../lib/perms');
-  assert.strictEqual(p.match('git status -s'), 'git status -s'); assert.strictEqual(p.match('git  diff   --stat'), 'git diff --stat'); assert.strictEqual(p.match('ls'), 'ls');
-  for (const c of ['git diff --output=/tmp/x', 'git diff --ext-diff', 'git log -c', 'git -c core.pager=x log', 'git branch -D x', 'find . -exec rm {} +', 'rg --pre ./x foo', 'make deploy', 'npm test', 'npm run build', 'pytest', 'node --test', 'go test ./...', 'node evil.js', 'rm -rf x', 'curl http://x', 'lsof -i', 'git statusx']) assert.strictEqual(p.match(c), null, c);
+  for (const c of ['git status -s', 'git  diff   --stat', 'ls', 'ls -la src', 'git log --oneline -5', 'git diff HEAD~1', 'grep -rn foo src', 'git diff --stat=80']) assert.strictEqual(p.match(c), c.trim().replace(/\s+/g, ' '), c);
+  for (const c of ['git diff --output=/tmp/x', 'git diff --out=/tmp/x', 'git diff --ext', 'git diff --ext-diff', 'git log -c', 'git -c core.pager=x log', 'git branch -D x', 'find . -exec rm {} +', 'rg --pre ./x foo', 'make deploy', 'npm test', 'pytest', 'node --test',
+    'go test ./...', 'rm -rf x', 'curl http://x', 'lsof -i', 'git statusx', 'ls *.js', 'git diff HEAD:file', 'git diff {a,b}', 'grep "a b" src', 'git diff -o x', 'git show --textconv x']) assert.strictEqual(p.match(c), null, c);
 });
 
 test('cost: uses only prices the user entered', () => {
