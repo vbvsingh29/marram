@@ -18,10 +18,28 @@ function mkTerm(){
   const term=new Terminal({fontFamily:'"JetBrains Mono",ui-monospace,Menlo,monospace',fontSize:13,cursorBlink:true,scrollback:5000,theme:termTheme(),allowProposedApi:true});
   const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.open(el);return{el,term,fit};
 }
+/* attach: pasted screenshots, dropped files and the Attach button are saved on this computer and the path is typed for the agent */
+async function attachFiles(o,files){
+  const st=$('#tatt');const say=t=>{if(st)st.textContent=t};
+  for(const f of files){
+    if(f.size>25*1024*1024){say(f.name+' is larger than 25 MB');continue}
+    say('adding '+f.name+'...');
+    const r=await fetch('/api/attach?name='+encodeURIComponent(f.name||'image.png'),{method:'POST',headers:{'x-hub':'1','content-type':'application/octet-stream'},body:f}).then(x=>x.json()).catch(()=>({error:'upload failed'}));
+    if(r.error){say(r.error);continue}
+    o.term.paste((/\s/.test(r.path)?'"'+r.path+'"':r.path)+' ');say('added '+r.name+' - it is in the message box');o.term.focus();
+  }
+}
+function wireAttach(o){
+  const el=o.el;
+  el.addEventListener('paste',e=>{const fs=[...(e.clipboardData?e.clipboardData.files:[])];if(!fs.length)return;e.preventDefault();e.stopPropagation();attachFiles(o,fs)},true);
+  el.addEventListener('dragover',e=>{if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files')){e.preventDefault();el.classList.add('drop')}});
+  el.addEventListener('dragleave',()=>el.classList.remove('drop'));
+  el.addEventListener('drop',e=>{el.classList.remove('drop');const fs=[...(e.dataTransfer?e.dataTransfer.files:[])];if(!fs.length)return;e.preventDefault();attachFiles(o,fs)});
+}
 function attachTerm(tid,sid,cwd,pre){
   if(TM.has(tid))return;
   const {el,term,fit}=pre||mkTerm();
-  const o={tid,sid,cwd,term,fit,el,alive:true};TM.set(tid,o);
+  const o={tid,sid,cwd,term,fit,el,alive:true};TM.set(tid,o);wireAttach(o);
   let q=Promise.resolve();term.onData(d=>{q=q.then(()=>tpost('/api/term-in',{tid,d})).catch(()=>{})});
   term.onResize(({cols,rows})=>tpost('/api/term-resize',{tid,cols,rows}));
   new ResizeObserver(()=>{if(!el.hidden)try{fit.fit()}catch{}}).observe(el);
@@ -43,7 +61,7 @@ function drawChips(){const c=$('#tchips');if(!c)return;
   c.querySelectorAll('[data-x]').forEach(a=>a.onclick=e=>{e.preventDefault();e.stopPropagation();const o=TM.get(a.dataset.x);tpost('/api/term-kill',{tid:o.tid,forget:1});o.term.dispose();o.el.remove();TM.delete(o.tid);if(curT===o.tid){curT=[...TM.keys()][0]||null;if(curT)showTerm(curT)}drawChips();poll()})}
 async function drawTerm(){
   const root=$('#trm');
-  if(!$('#tmain')){root.innerHTML='<div class="bar"><div id="tchips" class="bar" style="margin:0"></div><button id="tsplit" title="show two terminals side by side">'+(split?'single view':'split view')+'</button><select id="tsn" title="saved prompts"><option value="">Prompts...</option></select></div><div id="tmain"></div>';$('#tsplit').onclick=()=>{split=!split;LSx.set('split',split?'1':'0');$('#tsplit').textContent=split?'single view':'split view';if(split&&(!prevT||prevT===curT))prevT=[...TM.keys()].find(t=>t!==curT)||null;if(curT)showTerm(curT)}}
+  if(!$('#tmain')){root.innerHTML='<div class="bar"><div id="tchips" class="bar" style="margin:0"></div><button id="tatb" title="attach an image or document (you can also paste a screenshot or drop a file on the terminal)">Attach</button><input id="tafi" type="file" multiple hidden><span class="mut" id="tatt"></span><button id="tsplit" title="show two terminals side by side">'+(split?'single view':'split view')+'</button><select id="tsn" title="saved prompts"><option value="">Prompts...</option></select></div><div id="tmain"></div>';$('#tatb').onclick=()=>$('#tafi').click();$('#tafi').onchange=e=>{const o=TM.get(curT);if(o)attachFiles(o,[...e.target.files]);e.target.value=''};$('#tsplit').onclick=()=>{split=!split;LSx.set('split',split?'1':'0');$('#tsplit').textContent=split?'single view':'split view';if(split&&(!prevT||prevT===curT))prevT=[...TM.keys()].find(t=>t!==curT)||null;if(curT)showTerm(curT)}}
   const L=await fetch('/api/terms',{headers:{'x-hub':'1'}}).then(r=>r.json()).catch(()=>[]);
   for(const t of L)if(t.alive&&!TM.has(t.tid)){attachTerm(t.tid,t.sid,t.cwd)}
   if(!curT||!TM.has(curT))curT=[...TM.keys()][0]||null;

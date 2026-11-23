@@ -25,7 +25,7 @@ textarea{width:100%;min-height:70px;font-family:var(--mono);font-size:12px}
 .live{background:var(--bg);border:1px solid var(--bd);border-radius:7px;padding:8px;max-height:420px;overflow:auto;font:12px var(--mono);margin-top:8px}
 .live .ln{white-space:pre-wrap;margin:2px 0}.live .you{color:var(--mut)}.live .tool{color:var(--fg);opacity:.75}.live .res{color:var(--mut)}.live .err{color:var(--err)}.live .sys{color:var(--mut);font-style:italic}
 .chip{border:1px solid var(--bd);background:var(--panel);border-radius:999px;padding:3px 10px;cursor:pointer;font-size:12px}.chip.on{border-color:var(--ac);color:var(--ac)}
-#tmain{height:calc(100vh - 120px);min-height:360px}.tv{height:100%;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:6px}.tv .xterm{height:100%}
+#tmain{height:calc(100vh - 120px);min-height:360px}.tv{height:100%;background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:6px}.tv .xterm{height:100%}.tv.drop{outline:2px dashed var(--ac);outline-offset:-4px}
 button.primary{background:var(--ac);color:var(--acfg);border-color:var(--ac)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px;align-items:start}.grid>.card{margin:0}.chips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.chips button{border-radius:999px;padding:3px 11px;font-size:12px}
 #npm{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:16px}#npm[hidden]{display:none}.npb{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:16px;width:min(560px,100%);max-height:90vh;display:flex;flex-direction:column;gap:10px}.npl{overflow:auto;max-height:42vh;border:1px solid var(--bd);border-radius:8px}

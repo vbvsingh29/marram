@@ -353,3 +353,15 @@ test('Windows-safe: project folders are found with either path separator, and pr
   const d = fs.mkdtempSync(path.join(os.tmpdir(), 'bin-')); fs.writeFileSync(path.join(d, 'tool.exe'), 'x'); fs.chmodSync(path.join(d, 'tool.exe'), 0o755); fs.writeFileSync(path.join(d, 'plain'), 'x'); fs.chmodSync(path.join(d, 'plain'), 0o755);
   assert.ok(onPath('tool', d, 'win32', '.COM;.EXE;.BAT'), 'found through PATHEXT'); if (process.platform !== 'win32') { assert.ok(!onPath('tool', d, 'linux'), 'not on Linux without the extension'); assert.ok(onPath('plain', d, 'linux')); } assert.ok(!onPath('missing', d, 'win32')); assert.ok(!onPath('', d, 'linux'));
 });
+
+test('attach: names are sanitised, only allowed types, size capped, files private', async () => {
+  const a = require('../lib/attach'), { Readable } = require('stream');
+  assert.strictEqual(a.safeName('../../etc/my shot.PNG'), 'my_shot.PNG');
+  for (const bad of ['run.sh', 'noext', 'x.exe', '.png.']) assert.throws(() => a.safeName(bad), /not supported/);
+  const mk = buf => Object.assign(Readable.from([buf]), { headers: { 'content-length': String(buf.length) } });
+  const r = await a.save(mk(Buffer.from('hello')), 'note.txt');
+  assert.ok(r.path.startsWith(a.DIR) && r.path.endsWith('-note.txt') && r.size === 5);
+  if (process.platform !== 'win32') assert.strictEqual(require('fs').statSync(r.path).mode & 0o077, 0);
+  require('fs').rmSync(r.path);
+  await assert.rejects(a.save(Object.assign(Readable.from([Buffer.alloc(1)]), { headers: { 'content-length': String(a.MAX + 1) } }), 'big.png'), /25 MB/);
+});
