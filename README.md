@@ -21,6 +21,7 @@ Use the agent dropdown in the sidebar to filter. Agents that are not installed a
 - **Sessions** across all projects, grouped by repo with worktrees nested. Status (active / later / revisit / done / closed, closed can be reopened), notes, feature / bug / chore type, pins, list and board views. A strip at the top shows your pinned sessions and what you touched last.
 - **Ctrl+K command palette** to jump to any session, project or tab, or run an action. **Select** several sessions to tag them at once.
 - **+ New session**: pick an agent and a folder (optionally in a fresh git worktree), then work in the real terminal (xterm.js). Split view shows two terminals side by side. A **Prompts** menu inserts your saved prompts.
+- **Attach images and documents**: paste a screenshot, drop a file on the terminal, or press Attach. The file is saved privately on this computer (25 MB limit, images, PDF, text, Office files) and its path is typed for the agent.
 - **Watch**: sessions waiting for you, two sessions editing the same file or folder, secrets pasted into chats, heavy context. Optional desktop alerts when a session ends.
 - **Daily update**: a plain-language summary of what you worked on (today, yesterday or the week), ready to paste into Slack or a meeting.
 - **Chat viewer**, full-text search, and a **changes** view per session with files, commits and the pull request and its checks (GitHub).
