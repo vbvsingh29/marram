@@ -8,8 +8,8 @@ function plainTitle(s){
   if(t.length>80)t=t.slice(0,80).replace(/\s+\S*$/,'')+'...';
   return t?t[0].toUpperCase()+t.slice(1):'Untitled work';
 }
-function buildReport(k,list){ // list = freshly fetched sessions of every agent; a closed session you touched in the period counts as finished work
-  const [a,b]=rangeBounds(k),L=(list||D.sessions).filter(s=>s.mtime>=a&&s.mtime<b);
+function buildReport(k,list,work){ // list = freshly fetched sessions of every agent; a closed session you touched in the period counts as finished work
+  const [a,b]=rangeBounds(k),L=(list||D.sessions).filter(s=>s.mtime>=a&&((s.agent||'claude')==='claude'&&work?!!work[s.id]:s.mtime<b)); /* Claude: only sessions with messages written in the period; a session merely open or touched later is not work */
   const G=new Map();
   for(const s of L){const key=(tickets(s)[0])||(ghRefs(s)[0])||('s:'+s.id); /* only sessions on the same ticket or issue are merged; every other session keeps its own line */(G.get(key)||G.set(key,[]).get(key)).push(s)}
   const rows=[...G].map(([key,l])=>{const top=l.sort((x,y)=>y.mtime-x.mtime)[0],open=l.some(s=>(s.status==='active'||s.running)),parked=!open&&l.some(s=>s.status==='later'||s.status==='revisit'),id=key.startsWith('s:')?'':key,proj=short(top.repo||top.cwd).split('/').pop();
@@ -21,11 +21,11 @@ function buildReport(k,list){ // list = freshly fetched sessions of every agent;
 }
 async function openReport(){
   let m=$('#rpm');if(!m){m=document.createElement('div');m.id='rpm';m.className='modal';document.body.appendChild(m);m.addEventListener('click',e=>{if(e.target===m)m.hidden=true});document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!m.hidden)m.hidden=true})}
-  m.hidden=false;let k=m.dataset.k||'today',list=null;
-  const fresh=async()=>{const r=await api('/api/sessions').catch(()=>null);list=r&&r.sessions?r.sessions:D.sessions}; // always the latest, all agents, whatever the page was showing
+  m.hidden=false;let k=m.dataset.k||'today',list=null,work=null;
+  const fresh=async()=>{const r=await api('/api/sessions').catch(()=>null);list=r&&r.sessions?r.sessions:D.sessions;const [a,b]=rangeBounds(k);work=await api('/api/day-work?from='+a+'&to='+b).then(w=>w&&!w.error?w:null).catch(()=>null)}; // always the latest, all agents, whatever the page was showing
   const paint=()=>{m.dataset.k=k;m.innerHTML=`<div class="npb" style="width:min(640px,100%)"><div class="row" style="justify-content:space-between;margin:0"><h1 style="margin:0">Daily update</h1><button id="rpx">close</button></div>
     <div class="chips" style="margin:0">${Object.entries(RANGES).map(([x,l])=>`<button data-rk="${x}" class="${k===x?'on':''}">${l}</button>`).join('')}<button id="rpf" title="read the latest sessions again">refresh</button></div>
-    <textarea id="rpt" style="min-height:260px;font-family:var(--ui);font-size:14px">${esc(buildReport(k,list))}</textarea>
+    <textarea id="rpt" style="min-height:260px;font-family:var(--ui);font-size:14px">${esc(buildReport(k,list,work))}</textarea>
     <div class="row" style="justify-content:space-between"><span class="mut">Built from your session titles and tickets as of ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}. Edit freely before you send it.</span><span><button id="rps">Send...</button> <button id="rpc" class="primary">Copy</button></span></div></div>`;
     $('#rpx').onclick=()=>m.hidden=true;m.querySelectorAll('[data-rk]').forEach(b=>b.onclick=async()=>{k=b.dataset.rk;await fresh();paint()});
     $('#rpf').onclick=async()=>{await fresh();paint()};
